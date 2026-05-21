@@ -803,7 +803,7 @@
                         pCorr[getIdx(0, j)] = pCorr[getIdx(1, j)];           // 壁面BC: Neumann
                     }
                     for (let j = 0; j < jmax; j++) {
-                        pCorr[getIdx(imax - 1, j)] = pCorr[getIdx(imax - 2, j)];                    // 遠方BC: Dirichlet
+                        pCorr[getIdx(imax - 1, j)] = pCorr[getIdx(imax - 2, j)];
                     }
                 }
             }
