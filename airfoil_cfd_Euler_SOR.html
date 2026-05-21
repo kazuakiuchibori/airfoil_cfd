@@ -915,10 +915,9 @@
                     pCorr[getIdx(0, j)] = pCorr[getIdx(1, j)];
                 }
 
-                // (c) 遠方境界 (i = imax - 1) はディリクレ境界条件 (0固定) で安定化
+                // (c) 遠方境界 (i = imax - 1)
                 for (let j = 0; j < jmax; j++) {
-                    pCorr[getIdx(imax - 1, j)] = 0.0;
-                    //pCorr[getIdx(imax - 1, j)] = pCorr[getIdx(imax - 2, j)];
+                    pCorr[getIdx(imax - 1, j)] = pCorr[getIdx(imax - 2, j)];
                 }
             }
 
