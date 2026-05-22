@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+<meta charset="UTF-8">
+<title>Brownian Ensemble Statistics</title>
+
+<style>
+
+body{
+    font-family:Arial,sans-serif;
+    background:#f5f5f5;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-top:20px;
+}
+
+canvas{
+    border:1px solid #ccc;
+    background:white;
+}
+
+.panel{
+    width:760px;
+    background:white;
+    margin-top:10px;
+    padding:15px;
+    border-radius:8px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.row{
+    margin-bottom:8px;
+}
+
+input{
+    width:120px;
+}
+
+.stat{
+    font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>
+ブラウン運動・アンサンブル統計・Fano因子
+</h2>
+
+<canvas id="canvas" width="760" height="520"></canvas>
+
+<div class="panel">
+
+<div class="row">
+初期粒子数 N0:
+<input id="n0Input" type="number" value="3000">
+</div>
+
+<div class="row">
+アンサンブル数 M:
+<input id="ensembleInput" type="number" value="30">
+</div>
+
+<div class="row">
+拡散係数 D [m²/s]:
+<input id="dInput" type="number"
+step="0.00001"
+value="0.00002">
+</div>
+
+<div class="row">
+格子幅 dx [m]:
+<input id="dxInput" type="number"
+step="0.001"
+value="0.01">
+</div>
+
+<div class="row">
+時間刻み dt [s]:
+<input id="dtInput" type="number"
+step="0.01"
+value="0.1">
+</div>
+
+<button onclick="initializeSimulation()">
+初期化
+</button>
+
+<button onclick="togglePause()">
+一時停止 / 再開
+</button>
+
+<hr>
+
+<div class="row stat">
+時間:
+<span id="timeLabel">0.0</span> s
+</div>
+
+<div class="row stat">
+アンサンブル数:
+<span id="ensembleLabel">0</span>
+</div>
+
+<div class="row stat">
+粒子総数:
+<span id="particleLabel">0</span>
+</div>
+
+<div class="row stat">
+平均 μ:
+<span id="meanLabel">0</span>
+</div>
+
+<div class="row stat">
+分散 σ²:
+<span id="varLabel">0</span>
+</div>
+
+<div class="row stat">
+Fano因子 σ²/μ:
+<span id="fanoLabel">0</span>
+</div>
+
+<div class="row stat">
+状態:
+<span id="pauseLabel">RUNNING</span>
+</div>
+
+</div>
+
+<script>
+
+const canvas =
+    document.getElementById("canvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+const GRID_PIXEL = 20;
+
+const COLS =
+    Math.floor(canvas.width / GRID_PIXEL);
+
+const ROWS =
+    Math.floor(canvas.height / GRID_PIXEL);
+
+const NCELLS = COLS * ROWS;
+
+let ensembles = [];
+
+let D = 2.0e-5;
+let DX = 0.01;
+let DT = 0.1;
+
+let N0 = 3000;
+let M = 30;
+
+let sigmaPixel = 1.0;
+
+let simTime = 0;
+
+let paused = false;
+
+function gaussianRandom(){
+
+    let u1 = Math.random();
+
+    let u2 = Math.random();
+
+    return Math.sqrt(
+        -2.0 * Math.log(u1)
+    ) * Math.cos(
+        2.0 * Math.PI * u2
+    );
+}
+
+function initializeSimulation(){
+
+    ensembles = [];
+
+    simTime = 0;
+
+    paused = false;
+
+    document.getElementById(
+        "pauseLabel"
+    ).innerText = "RUNNING";
+
+    N0 =
+        parseInt(
+            document.getElementById(
+                "n0Input"
+            ).value
+        );
+
+    M =
+        parseInt(
+            document.getElementById(
+                "ensembleInput"
+            ).value
+        );
+
+    D =
+        parseFloat(
+            document.getElementById(
+                "dInput"
+            ).value
+        );
+
+    DX =
+        parseFloat(
+            document.getElementById(
+                "dxInput"
+            ).value
+        );
+
+    DT =
+        parseFloat(
+            document.getElementById(
+                "dtInput"
+            ).value
+        );
+
+    // Brownian sigma [m]
+    const sigmaMeters =
+        Math.sqrt(
+            2.0 * D * DT
+        );
+
+    // pixel conversion
+    sigmaPixel =
+        sigmaMeters
+        / DX
+        * GRID_PIXEL;
+
+    // center cell
+    const centerGX =
+        Math.floor(COLS / 2);
+
+    const centerGY =
+        Math.floor(ROWS / 2);
+
+    const x0 =
+        centerGX * GRID_PIXEL;
+
+    const y0 =
+        centerGY * GRID_PIXEL;
+
+    // ensembles
+    for(let m=0;m<M;m++){
+
+        let particles = [];
+
+        for(let i=0;i<N0;i++){
+
+            particles.push({
+
+                x:
+                    x0
+                    + Math.random()
+                    * GRID_PIXEL,
+
+                y:
+                    y0
+                    + Math.random()
+                    * GRID_PIXEL
+            });
+        }
+
+        ensembles.push(particles);
+    }
+
+    document.getElementById(
+        "ensembleLabel"
+    ).innerText = M;
+}
+
+function togglePause(){
+
+    paused = !paused;
+
+    document.getElementById(
+        "pauseLabel"
+    ).innerText =
+        paused
+        ? "PAUSED"
+        : "RUNNING";
+}
+
+function updateParticles(){
+
+    for(let m=0;m<M;m++){
+
+        ensembles[m].forEach(p => {
+
+            p.x +=
+                gaussianRandom()
+                * sigmaPixel;
+
+            p.y +=
+                gaussianRandom()
+                * sigmaPixel;
+        });
+
+        // open boundary
+        ensembles[m] =
+            ensembles[m].filter(p =>
+
+                p.x >= 0 &&
+                p.x < canvas.width &&
+
+                p.y >= 0 &&
+                p.y < canvas.height
+            );
+    }
+}
+
+function computeEnsembleStatistics(){
+
+    // cell counts for each ensemble
+    let ensembleGrids = [];
+
+    for(let m=0;m<M;m++){
+
+        const grid =
+            Array(NCELLS).fill(0);
+
+        ensembles[m].forEach(p => {
+
+            const gx =
+                Math.floor(
+                    p.x / GRID_PIXEL
+                );
+
+            const gy =
+                Math.floor(
+                    p.y / GRID_PIXEL
+                );
+
+            if(
+                gx >= 0 &&
+                gx < COLS &&
+                gy >= 0 &&
+                gy < ROWS
+            ){
+
+                grid[
+                    gx + gy * COLS
+                ]++;
+            }
+        });
+
+        ensembleGrids.push(grid);
+    }
+
+    // mean and variance field
+    let meanField =
+        Array(NCELLS).fill(0);
+
+    let varField =
+        Array(NCELLS).fill(0);
+
+    let fanoField =
+        Array(NCELLS).fill(0);
+
+    for(let i=0;i<NCELLS;i++){
+
+        // mean
+        let mean = 0;
+
+        for(let m=0;m<M;m++){
+
+            mean +=
+                ensembleGrids[m][i];
+        }
+
+        mean /= M;
+
+        meanField[i] = mean;
+
+        // variance
+        let variance = 0;
+
+        for(let m=0;m<M;m++){
+
+            variance +=
+                (
+                    ensembleGrids[m][i]
+                    - mean
+                ) *
+                (
+                    ensembleGrids[m][i]
+                    - mean
+                );
+        }
+
+        variance /= M;
+
+        varField[i] = variance;
+
+        // Fano factor
+        if(mean > 1.0e-12){
+
+            fanoField[i] =
+                variance / mean;
+        }
+    }
+
+    return {
+        meanField,
+        varField,
+        fanoField
+    };
+}
+
+function draw(field){
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    const maxValue =
+        Math.max(...field);
+
+    for(let i=0;i<field.length;i++){
+
+        const value = field[i];
+
+        if(value <= 0) continue;
+
+        const normalized =
+            value / maxValue;
+
+        // blue -> red
+        const hue =
+            240
+            - 240 * normalized;
+
+        ctx.fillStyle =
+            `hsla(${hue},80%,50%,0.75)`;
+
+        const x =
+            (i % COLS)
+            * GRID_PIXEL;
+
+        const y =
+            Math.floor(i / COLS)
+            * GRID_PIXEL;
+
+        ctx.fillRect(
+            x,
+            y,
+            GRID_PIXEL,
+            GRID_PIXEL
+        );
+    }
+}
+
+function updateLabels(stats){
+
+    let totalParticles = 0;
+
+    for(let m=0;m<M;m++){
+
+        totalParticles +=
+            ensembles[m].length;
+    }
+
+    // global averages
+    let meanMean = 0;
+
+    let meanVar = 0;
+
+    let meanFano = 0;
+
+    let count = 0;
+
+    for(let i=0;i<NCELLS;i++){
+
+        const mu =
+            stats.meanField[i];
+
+        if(mu > 1.0e-12){
+
+            meanMean += mu;
+
+            meanVar +=
+                stats.varField[i];
+
+            meanFano +=
+                stats.fanoField[i];
+
+            count++;
+        }
+    }
+
+    if(count > 0){
+
+        meanMean /= count;
+
+        meanVar /= count;
+
+        meanFano /= count;
+    }
+
+    document.getElementById(
+        "timeLabel"
+    ).innerText =
+        simTime.toFixed(2);
+
+    document.getElementById(
+        "particleLabel"
+    ).innerText =
+        totalParticles;
+
+    document.getElementById(
+        "meanLabel"
+    ).innerText =
+        meanMean.toFixed(5);
+
+    document.getElementById(
+        "varLabel"
+    ).innerText =
+        meanVar.toFixed(5);
+
+    document.getElementById(
+        "fanoLabel"
+    ).innerText =
+        meanFano.toFixed(5);
+}
+
+function animate(){
+
+    if(!paused){
+
+        simTime += DT;
+
+        updateParticles();
+    }
+
+    const stats =
+        computeEnsembleStatistics();
+
+    // visualize Fano field
+    draw(stats.fanoField);
+
+    updateLabels(stats);
+
+    requestAnimationFrame(
+        animate
+    );
+}
+
+initializeSimulation();
+
+animate();
+
+</script>
+
+</body>
+
+</html>
