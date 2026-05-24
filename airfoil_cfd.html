@@ -606,6 +606,14 @@
             pFlow = new Float64Array(size);
             uFlowTmp = new Float64Array(size);
             vFlowTmp = new Float64Array(size);
+            rhsU = new Float64Array(size);
+            rhsV = new Float64Array(size);
+            convU_n = new Float64Array(size);
+            convV_n = new Float64Array(size);
+            convU_old = new Float64Array(size);
+            convV_old = new Float64Array(size);
+            JU = new Float64Array(size);
+            JV = new Float64Array(size);
 
             updateCfdParamsFromUi();
             const u_init = U_inf * Math.cos(Alpha_AoA);
@@ -616,13 +624,7 @@
                 vFlow[i] = v_init;
                 pFlow[i] = 0.0;
             }
-            // Wall BC
-            for (let j = 0; j < jmax; j++) {
-                uFlow[getIdx(0, j)] = 0.0;
-                vFlow[getIdx(0, j)] = 0.0;
-            }
-            convU_old = new Float64Array(size);
-            convV_old = new Float64Array(size);
+
             isFirstStep = true;
             maxCflGlobal = 0.0;
             maxDiffGlobal = 0.0;
@@ -656,10 +658,14 @@
             let localMaxCfl = 0.0;
             let localMaxDiff = 0.0;
 
-            const rhsU = new Float64Array(size);
-            const rhsV = new Float64Array(size);
-            const convU_n = new Float64Array(size);
-            const convV_n = new Float64Array(size);
+            for (let j = 0; j < jmax; j++) {
+                uFlow[getIdx(0, j)] = 0.0;
+                vFlow[getIdx(0, j)] = 0.0;
+            }
+            for (let j = 0; j < jmax; j++) {
+                uFlow[getIdx(imax - 1, j)] = u_inf_x;
+                vFlow[getIdx(imax - 1, j)] = u_inf_y;
+            }
 
             // =====================================================================
             // Step 1: RHS構築
@@ -831,6 +837,15 @@
             uFlowTmp.set(rhsU);
             vFlowTmp.set(rhsV);
 
+            for (let j = 0; j < jmax; j++) {
+                uFlowTmp[getIdx(0, j)] = 0.0;
+                vFlowTmp[getIdx(0, j)] = 0.0;
+            }
+            for (let j = 0; j < jmax; j++) {
+                uFlowTmp[getIdx(imax - 1, j)] = u_inf_x;
+                vFlowTmp[getIdx(imax - 1, j)] = u_inf_y;
+            }
+
             const omega_u = 1.0;
 
             for (let iter = 0; iter < 5; iter++) {
@@ -900,17 +915,6 @@
                             omega_u * (vTarget - vFlowTmp[idx]);
                     }
                 }
-
-                // 壁面 BC
-                for (let j = 0; j < jmax; j++) {
-                    uFlowTmp[getIdx(0, j)] = 0.0;
-                    vFlowTmp[getIdx(0, j)] = 0.0;
-                }
-                // 遠方 BC
-                for (let j = 0; j < jmax; j++) {
-                    uFlowTmp[getIdx(imax - 1, j)] = u_inf_x;
-                    vFlowTmp[getIdx(imax - 1, j)] = u_inf_y;
-                }
             }
 
             // =====================================================================
@@ -918,8 +922,6 @@
             //   発散項を4次精度にすることで奇遇振動除去
             // =====================================================================
 
-            const JU = new Float64Array(size);
-            const JV = new Float64Array(size);
             for (let i = 0; i < imax; i++) {
                 for (let j = 0; j < jmax; j++) {
                     const idx = getIdx(i, j);
