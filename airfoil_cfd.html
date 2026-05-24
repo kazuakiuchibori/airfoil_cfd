@@ -639,6 +639,13 @@
             return { cfl, diff };
         }
 
+        // =====================================================================
+        // 頂点コロケート法
+        //  コロケートやスタガードのような暗黙的な補間無
+        //  壁面に厳密にゼロ速度を定義、最近傍点でも安定的に2次精度
+        //  発散項の4次精度化で奇遇振動を解消
+        // =====================================================================
+
         function stepFlowSolver() {
             updateCfdParamsFromUi();
 
@@ -1066,10 +1073,6 @@
                 uFlow[i * jmax + (jmax - 1)] = uFlow[i * jmax + 0];
                 vFlow[i * jmax + (jmax - 1)] = vFlow[i * jmax + 0];
                 pFlow[i * jmax + (jmax - 1)] = pFlow[i * jmax + 0];
-            }
-            for (let j = 0; j < jmax; j++) {
-                uFlow[getIdx(0, j)] = 0.0;
-                vFlow[getIdx(0, j)] = 0.0;
             }
         }
 
