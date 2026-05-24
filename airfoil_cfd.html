@@ -344,6 +344,11 @@
         const U_inf = 1.0;
         let Alpha_AoA = 8.0 * Math.PI / 180.0;
 
+        // AB2用: 1ステップ前の移流項を保存
+        let convU_old = null;
+        let convV_old = null;
+        let isFirstStep = true;
+
         // モニタリング用最大値記録変数
         let maxCflGlobal = 0.0;
         let maxDiffGlobal = 0.0;
@@ -616,6 +621,9 @@
                 uFlow[getIdx(0, j)] = 0.0;
                 vFlow[getIdx(0, j)] = 0.0;
             }
+            convU_old = new Float64Array(size);
+            convV_old = new Float64Array(size);
+            isFirstStep = true;
             maxCflGlobal = 0.0;
             maxDiffGlobal = 0.0;
             computeMetrics();
@@ -674,14 +682,29 @@
                     // -------------------------------------------------
                     let u_xi, v_xi, u_eta, v_eta;
 
-                    if (i === 1 || i === imax - 2) {
+                    if (i === 1) {
 
                         if (U > 0.0) {
-                            u_xi = uFlow[idx] - uFlow[im];
-                            v_xi = vFlow[idx] - vFlow[im];
+                            // 風上側 i-2 が存在しない → 2次中心差分（参照点が壁面または遠方境界で流速固定のため安定）
+                            u_xi = (uFlow[ip] - uFlow[im]) * 0.5;
+                            v_xi = (vFlow[ip] - vFlow[im]) * 0.5;
                         } else {
-                            u_xi = uFlow[ip] - uFlow[idx];
-                            v_xi = vFlow[ip] - vFlow[idx];
+                            // 風上側 i+2 が存在する → 2次風上差分
+                            const ipp = getIdx(i + 2, j);
+                            u_xi = (-uFlow[ipp] + 4.0 * uFlow[ip] - 3.0 * uFlow[idx]) * 0.5;
+                            v_xi = (-vFlow[ipp] + 4.0 * vFlow[ip] - 3.0 * vFlow[idx]) * 0.5;
+                        }
+
+                    } else if (i === imax - 2) {
+
+                        if (U > 0.0) {
+                            // 風上側 i-2 が存在する → 2次風上差分
+                            u_xi = (3.0 * uFlow[idx] - 4.0 * uFlow[im] + uFlow[imm]) * 0.5;
+                            v_xi = (3.0 * vFlow[idx] - 4.0 * vFlow[im] + vFlow[imm]) * 0.5;
+                        } else {
+                            // 風上側 i+2 が存在しない → 2次中心差分（参照点が壁面または遠方境界で流速固定のため安定）
+                            u_xi = (uFlow[ip] - uFlow[im]) * 0.5;
+                            v_xi = (vFlow[ip] - vFlow[im]) * 0.5;
                         }
 
                     } else {
@@ -751,8 +774,18 @@
                             ) / 6.0;
                     }
 
-                    const ab_u = U * u_xi + V * u_eta;
-                    const ab_v = U * v_xi + V * v_eta;
+                    convU_n[idx] = U * u_xi + V * u_eta;
+                    convV_n[idx] = U * v_xi + V * v_eta;
+
+                    // -------------------------------------------------
+                    // Adams-Bashforth 2次
+                    // -------------------------------------------------
+                    const ab_u = isFirstStep
+                        ? convU_n[idx]
+                        : 1.5 * convU_n[idx] - 0.5 * convU_old[idx];
+                    const ab_v = isFirstStep
+                        ? convV_n[idx]
+                        : 1.5 * convV_n[idx] - 0.5 * convV_old[idx];
 
                     // -------------------------------------------------
                     // 粘性項
