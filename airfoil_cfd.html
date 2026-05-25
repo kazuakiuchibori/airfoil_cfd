@@ -33,25 +33,20 @@
 
         .control-panel {
             background: white;
-            padding: 15px 20px;
+            padding: 10px 15px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
         }
 
         .control-group {
             text-align: left;
-            flex: 1;
-            min-width: 130px;
-        }
-
-        .aoa-group {
-            border-left: 3px solid #e67e22;
-            padding-left: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
 
         .highlight-group {
@@ -64,18 +59,13 @@
             padding-left: 10px;
         }
 
-        .diag-group {
-            border-left: 3px solid #2ecc71;
-            padding-left: 10px;
-        }
-
-        .elliptic-group {
-            border-left: 3px solid #9b59b6;
-            padding-left: 10px;
-        }
-
         .cfd-group {
             border-left: 3px solid #f39c12;
+            padding-left: 10px;
+        }
+
+        .diag-group {
+            border-left: 3px solid #2ecc71;
             padding-left: 10px;
         }
 
@@ -83,9 +73,17 @@
             font-weight: bold;
             font-size: 11px;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             color: #555;
         }
+
+        .input-item {
+            margin-bottom: 6px;
+        }
+
+            .input-item:last-child {
+                margin-bottom: 0;
+            }
 
         input[type="number"], input[type="range"], select, button {
             width: 100%;
@@ -93,8 +91,8 @@
         }
 
         input[type="number"], select, button {
-            padding: 6px;
-            font-size: 13px;
+            padding: 4px 6px;
+            font-size: 12px;
             border: 1px solid #ccc;
             border-radius: 4px;
             background: white;
@@ -132,10 +130,15 @@
         }
 
             .range-container input[type="number"] {
-                width: 60px;
-                padding: 3px;
+                width: 55px;
+                padding: 2px 4px;
                 font-size: 11px;
             }
+
+        .btn-container {
+            display: flex;
+            gap: 5px;
+        }
 
         canvas {
             background: #ffffff;
@@ -150,55 +153,6 @@
             canvas:active {
                 cursor: grabbing;
             }
-
-        .force-panel {
-            background: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            margin-top: 12px;
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .force-item {
-            text-align: center;
-        }
-
-        .force-label {
-            font-size: 11px;
-            font-weight: bold;
-            color: #888;
-            letter-spacing: 0.05em;
-            margin-bottom: 2px;
-        }
-
-        .force-value {
-            font-size: 28px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            color: #222;
-            letter-spacing: -0.02em;
-        }
-
-        .force-value.cl { color: #2980b9; }
-        .force-value.cd { color: #c0392b; }
-        .force-value.ld { color: #27ae60; }
-
-        .force-sublabel {
-            font-size: 10px;
-            color: #aaa;
-            margin-top: 1px;
-        }
-
-        .force-sep {
-            width: 1px;
-            height: 50px;
-            background: #e0e0e0;
-        }
     </style>
 </head>
 <body>
@@ -208,82 +162,74 @@
         <p>Navier-Stokes方程式を高精度な有限差分法によりリアルタイムで非定常計算します。</p>
 
         <div class="control-panel">
+            <div class="control-group highlight-group">
+                <div class="input-item">
+                    <label for="mInput">M (最大キャンバー %):</label>
+                    <input type="number" id="mInput" min="0" max="9" step="1" value="2">
+                </div>
+                <div class="input-item">
+                    <label for="pInput">P (キャンバー位置 0.1倍):</label>
+                    <input type="number" id="pInput" min="0" max="9" step="1" value="4">
+                </div>
+                <div class="input-item">
+                    <label for="xxInput">XX (最大肉厚 %):</label>
+                    <input type="number" id="xxInput" min="1" max="99" step="1" value="15">
+                </div>
+            </div>
+
+            <div class="control-group grid-group">
+                <div class="input-item">
+                    <label for="imaxInput">IMAX (半径方向数: 40~200):</label>
+                    <input type="number" id="imaxInput" min="40" max="200" value="60">
+                </div>
+                <div class="input-item">
+                    <label for="jmaxInput">JMAX (周方向数: 60~300):</label>
+                    <input type="number" id="jmaxInput" min="60" max="300" value="120">
+                </div>
+                <div class="input-item">
+                    <label for="rRatioRange">計算領域半径 (対コード長):</label>
+                    <div class="range-container">
+                        <input type="range" id="rRatioRange" min="2.0" max="30.0" step="0.5" value="10.0">
+                        <input type="number" id="rRatioNum" min="2.0" max="30.0" step="0.5" value="10.0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group cfd-group">
+                <div class="input-item">
+                    <label for="reInput">Re (レイノルズ数):</label>
+                    <input type="number" id="reInput" min="100" max="10000000" step="100" value="10000">
+                </div>
+                <div class="input-item">
+                    <label for="dtInput">dt (時間刻み幅):</label>
+                    <input type="number" id="dtInput" min="0.000001" max="0.01" step="0.000001" value="0.00001">
+                </div>
+                <div class="input-item">
+                    <label for="aoaRange">迎角 Alpha (度):</label>
+                    <div class="range-container">
+                        <input type="range" id="aoaRange" min="-20" max="30" step="0.5" value="8.0">
+                        <input type="number" id="aoaNum" min="-20" max="30" step="0.5" value="8.0">
+                    </div>
+                </div>
+            </div>
+
             <div class="control-group diag-group">
-                <label for="viewModeSelect">表示モード:</label>
-                <select id="viewModeSelect">
-                    <option value="meshOnly">計算格子 (Computational Grid)</option>
-                    <option value="velocity" selected>流速絶対値 (Velocity Magnitude)</option>
-                    <option value="pressure">圧力 (Pressure)</option>
-                    <option value="vorticity">渦度 (Vorticity)</option>
-                    <option value="cfl">クーラン数 (Courant Number)</option>
-                    <option value="diffusion">拡散数 (Diffusion Number)</option>
-                    <option value="orthoSkew">直交性歪み (Orthogonal Skewness)</option>
-                    <option value="aspectRatio">アスペクト比 (Aspect Ratio)</option>
-                </select>
-            </div>
-
-            <div class="control-group aoa-group">
-                <label for="aoaRange">迎角 Alpha (度):</label>
-                <div class="range-container">
-                    <input type="range" id="aoaRange" min="-20" max="30" step="0.5" value="8.0">
-                    <input type="number" id="aoaNum" min="-20" max="30" step="0.5" value="8.0">
+                <div class="input-item">
+                    <label>CFDシミュレーション:</label>
+                    <div class="btn-container">
+                        <button id="toggleCfdBtn" class="btn-cfd">Start</button>
+                        <button id="resetCfdBtn" style="background:#7f8c8d;">Refresh</button>
+                    </div>
                 </div>
-            </div>
-
-            <div class="control-group cfd-group">
-                <label>CFDシミュレーション:</label>
-                <button id="toggleCfdBtn" class="btn-cfd">CFD計算 開始</button>
-                <button id="resetCfdBtn" style="margin-top:5px; background:#7f8c8d;">CFDリセット</button>
-            </div>
-
-            <div class="control-group cfd-group">
-                <label for="reInput">Re (レイノルズ数):</label>
-                <input type="number" id="reInput" min="1000" max="10000000" step="1000" value="10000">
-                <label for="dtInput" style="margin-top:5px;">dt (時間刻み幅):</label>
-                <input type="number" id="dtInput" min="0.000001" max="0.01" step="0.000001" value="0.00001">
-            </div>
-
-            <div class="control-group elliptic-group">
-                <label>楕円方程式格子最適化:</label>
-                <button id="solveEllipticBtn">ポアソン方程式を反復緩和</button>
-            </div>
-
-            <div class="control-group grid-group">
-                <label for="imaxInput">IMAX (半径方向数):</label>
-                <input type="number" id="imaxInput" min="40" max="200" value="60">
-            </div>
-            <div class="control-group grid-group">
-                <label for="jmaxInput">JMAX (周方向数):</label>
-                <input type="number" id="jmaxInput" min="80" max="400" value="120">
-            </div>
-
-            <div class="control-group grid-group">
-                <label for="drRange">DR (第一格子幅):</label>
-                <div class="range-container">
-                    <input type="range" id="drRange" min="0.0001" max="0.01" step="0.0001" value="0.002">
-                    <input type="number" id="drNum" min="0.0001" max="0.01" step="0.0001" value="0.002">
+                <div class="input-item">
+                    <label for="viewModeSelect">表示モード:</label>
+                    <select id="viewModeSelect">
+                        <option value="meshOnly">計算格子 (Grid)</option>
+                        <option value="velocity" selected>流速絶対値 (Velocity)</option>
+                        <option value="pressure">圧力 (Pressure)</option>
+                        <option value="vorticity">渦度 (Vorticity)</option>
+                    </select>
                 </div>
-            </div>
-
-            <div class="control-group grid-group">
-                <label for="psiInput">PSI (格子幅成長率):</label>
-                <div class="range-container">
-                    <input type="range" id="psiInput" min="1.01" max="1.25" step="0.01" value="1.12">
-                    <input type="number" id="psiNum" min="1.00" max="1.50" step="0.01" value="1.12">
-                </div>
-            </div>
-
-            <div class="control-group highlight-group">
-                <label for="mInput">M (最大キャンバー %):</label>
-                <input type="number" id="mInput" min="0" max="9" step="1" value="2">
-            </div>
-            <div class="control-group highlight-group">
-                <label for="pInput">P (キャンバー位置 0.1倍):</label>
-                <input type="number" id="pInput" min="0" max="9" step="1" value="4">
-            </div>
-            <div class="control-group highlight-group">
-                <label for="xxInput">XX (最大肉厚 %):</label>
-                <input type="number" id="xxInput" min="1" max="99" step="1" value="15">
             </div>
         </div>
 
@@ -297,7 +243,6 @@
         const ctx = canvas.getContext('2d');
 
         const viewModeSelect = document.getElementById('viewModeSelect');
-        const solveEllipticBtn = document.getElementById('solveEllipticBtn');
         const toggleCfdBtn = document.getElementById('toggleCfdBtn');
         const resetCfdBtn = document.getElementById('resetCfdBtn');
 
@@ -308,10 +253,9 @@
 
         const imaxInput = document.getElementById('imaxInput');
         const jmaxInput = document.getElementById('jmaxInput');
-        const drRange = document.getElementById('drRange');
-        const drNum = document.getElementById('drNum');
-        const psiInput = document.getElementById('psiInput');
-        const psiNum = document.getElementById('psiNum');
+        const rRatioRange = document.getElementById('rRatioRange');
+        const rRatioNum = document.getElementById('rRatioNum');
+
         const mInput = document.getElementById('mInput');
         const pInput = document.getElementById('pInput');
         const xxInput = document.getElementById('xxInput');
@@ -324,8 +268,12 @@
         let startY = 0;
 
         // 格子データ
-        let imax = 0, jmax = 0;
+        let imax = 60, jmax = 120;
         let gridX = null, gridY = null;
+
+        // 楕円緩和用の自動決定パラメータの内部保持
+        let currentAStrength = 0.40;
+        let currentBDecay = 0.10;
 
         // CFD流体場データ
         let uFlow = null;
@@ -344,24 +292,37 @@
         const U_inf = 1.0;
         let Alpha_AoA = 8.0 * Math.PI / 180.0;
 
-        // AB2用: 1ステップ前の移流項を保存
+        // 経過時間・ステップ数の追跡用変数
+        let cfdStepCount = 0;
+        let cfdTotalTime = 0.0;
+
+        // AB2用
         let convU_old = null;
         let convV_old = null;
         let isFirstStep = true;
 
-        // モニタリング用最大値記録変数
         let maxCflGlobal = 0.0;
         let maxDiffGlobal = 0.0;
 
-        // 翼の前縁位置（回転の物理中心基準点）
         const rotCenterX = -0.4;
         const rotCenterY = 0.0;
 
         function updateCfdParamsFromUi() {
-            Re = Math.max(1000, parseFloat(reInput.value) || 10000);
+            let rawRe = parseFloat(reInput.value);
+            if (isNaN(rawRe)) rawRe = 10000;
+
+            Re = Math.max(100, Math.min(10000000, rawRe));
+            reInput.value = Re;
+
             dt = Math.max(0.000001, parseFloat(dtInput.value) || 0.0005);
+            dtInput.value = dt;
+
             const deg = parseFloat(aoaNum.value) || 0.0;
             Alpha_AoA = deg * Math.PI / 180.0;
+
+            const logRe = Math.log10(Re);
+            currentAStrength = 0.10 + 0.05 * logRe;
+            currentBDecay = 0.30 - 0.03 * logRe;
         }
 
         const getIdx = (i, j) => {
@@ -389,18 +350,55 @@
             return { yc, yt, theta_c: Math.atan(dyc_dx) };
         }
 
-        function generateInitialAlgebraicGrid() {
-            imax = Math.max(30, parseInt(imaxInput.value) || 60);
-            jmax = Math.max(60, parseInt(jmaxInput.value) || 120);
+        // 入力完了時（フォーカスアウト時）に最小値・最大値を補正する関数
+        function clampInputValue(inputEl) {
+            let val = parseInt(inputEl.value);
+            const minV = parseInt(inputEl.getAttribute('min'));
+            const maxV = parseInt(inputEl.getAttribute('max'));
 
-            const dr = parseFloat(drNum.value) || 0.003;
-            const psi = parseFloat(psiNum.value) || 1.11;
-            const m = parseInt(mInput.value) || 0;
-            const p = parseInt(pInput.value) || 0;
-            const xx = parseInt(xxInput.value) || 12;
+            if (isNaN(val)) {
+                val = minV;
+            } else {
+                val = Math.max(minV, Math.min(maxV, val));
+            }
+            inputEl.value = val;
+            return val;
+        }
+
+        // 【今回の変更点】入力途中でMin Maxの境界を厳格に評価し、範囲外ならnullを返すガード関数
+        function getStrictValidatedValue(inputEl) {
+            let val = parseInt(inputEl.value);
+            if (isNaN(val)) return null;
+
+            const minV = parseInt(inputEl.getAttribute('min'));
+            const maxV = parseInt(inputEl.getAttribute('max'));
+
+            // 範囲外の値が入力されているときは、処理を進めずnullにする
+            if (val < minV || val > maxV) return null;
+            return val;
+        }
+
+        function generateInitialAlgebraicGrid() {
+            // 入力途中であっても、Min Maxを満たしている正常な数値のときのみ更新を許可する
+            const validImax = getStrictValidatedValue(imaxInput);
+            const validJmax = getStrictValidatedValue(jmaxInput);
+            const validM = getStrictValidatedValue(mInput);
+            const validP = getStrictValidatedValue(pInput);
+            const validXx = getStrictValidatedValue(xxInput);
+
+            if (validImax !== null) imax = validImax;
+            if (validJmax !== null) jmax = validJmax;
+
+            // 形状パラメータも安全な一時変数として処理
+            const m = (validM !== null) ? validM : (parseInt(mInput.getAttribute('min')) || 0);
+            const p = (validP !== null) ? validP : (parseInt(pInput.getAttribute('min')) || 0);
+            const xx = (validXx !== null) ? validXx : (parseInt(xxInput.getAttribute('min')) || 12);
 
             gridX = new Float64Array(imax * jmax);
             gridY = new Float64Array(imax * jmax);
+
+            const rRatio = parseFloat(rRatioNum.value) || 10.0;
+            const max_r = rRatio * 1.0;
 
             for (let j = 0; j < jmax; j++) {
                 const theta = 2.0 * Math.PI * j / (jmax - 1);
@@ -420,28 +418,33 @@
                 y_surf = y_surf * 1.0;
 
                 if (j === 0 || j === jmax - 1) { y_surf = 0.0; }
-                
+
                 const nx = Math.cos(theta);
                 const ny = Math.sin(theta);
 
-                let current_r = 0.0;
                 for (let i = 0; i < imax; i++) {
-                    if (i > 0) current_r += dr * Math.pow(psi, i - 1);
+                    const t = i / (imax - 1);
+                    const current_r = max_r * (Math.exp(3.0 * t) - 1.0) / (Math.exp(3.0) - 1.0);
+
                     const idx = i * jmax + j;
                     gridX[idx] = x_surf + nx * current_r;
                     gridY[idx] = y_surf + ny * current_r;
                 }
             }
-            initCfdBuffers();
+            // 流体計算用バッファは配列サイズ変更が必要な場合のみ再初期化する
+            if (uFlow === null || uFlow.length !== imax * jmax) {
+                initCfdBuffers();
+            }
         }
 
-        function smoothGridElliptic(iterations = 100) {
-            const w = 1.0;
+        function smoothGridElliptic() {
+            if (!gridX || !gridY) return;
+            const w = 1.5;
+            const tolerance = 1e-3;
 
-            const A_strength = 0.4;
-            const B_decay = 0.1;
+            for (let iter = 0; iter < 1000; iter++) {
+                let maxChange = 0.0;
 
-            for (let iter = 0; iter < iterations; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
@@ -462,7 +465,7 @@
                         const x_xi_eta = 0.25 * (gridX[idx_ipjp] - gridX[idx_ipjm] - gridX[idx_imjp] + gridX[idx_imjm]);
                         const y_xi_eta = 0.25 * (gridY[idx_ipjp] - gridY[idx_ipjm] - gridY[idx_imjp] + gridY[idx_imjm]);
 
-                        const P = -A_strength * Math.exp(-B_decay * i);
+                        const P = -currentAStrength * Math.exp(-currentBDecay * i);
                         const Q = 0.0;
 
                         const denominator = 2.0 * (alpha + gamma);
@@ -484,8 +487,16 @@
                             gamma * Q * y_eta
                         ) / denominator;
 
-                        gridX[idx] += w * (targetX - gridX[idx]);
-                        gridY[idx] += w * (targetY - gridY[idx]);
+                        const dx = w * (targetX - gridX[idx]);
+                        const dy = w * (targetY - gridY[idx]);
+
+                        const change = Math.max(Math.abs(dx), Math.abs(dy));
+                        if (change > maxChange) {
+                            maxChange = change;
+                        }
+
+                        gridX[idx] += dx;
+                        gridY[idx] += dy;
                     }
                 }
 
@@ -493,108 +504,59 @@
                     gridX[i * jmax + (jmax - 1)] = gridX[i * jmax + 0];
                     gridY[i * jmax + (jmax - 1)] = gridY[i * jmax + 0];
                 }
+
+                if (maxChange < tolerance) {
+                    break;
+                }
             }
             computeMetrics();
         }
 
         function computeMetrics() {
-
             const size = imax * jmax;
-
             metrics = {
-                xi_x: new Float64Array(size),
-                xi_y: new Float64Array(size),
-
-                eta_x: new Float64Array(size),
-                eta_y: new Float64Array(size),
-
+                xi_x: new Float64Array(size), xi_y: new Float64Array(size),
+                eta_x: new Float64Array(size), eta_y: new Float64Array(size),
                 J: new Float64Array(size),
-
-                alpha: new Float64Array(size),
-                beta: new Float64Array(size),
-                gamma: new Float64Array(size)
+                alpha: new Float64Array(size), beta: new Float64Array(size), gamma: new Float64Array(size)
             };
 
             for (let i = 0; i < imax; i++) {
-
                 for (let j = 0; j < jmax - 1; j++) {
-
                     const idx = getIdx(i, j);
-
                     const ip = getIdx(Math.min(imax - 1, i + 1), j);
                     const im = getIdx(Math.max(0, i - 1), j);
-
                     const ipp = getIdx(Math.min(imax - 1, i + 2), j);
                     const imm = getIdx(Math.max(0, i - 2), j);
-
                     const jp = getIdx(i, j + 1);
                     const jm = getIdx(i, j - 1);
-
                     const jpp = getIdx(i, j + 2);
                     const jmm = getIdx(i, j - 2);
 
                     let x_xi, y_xi;
-
                     if (i >= 2 && i <= imax - 3) {
-
-                        x_xi =
-                            (
-                                - gridX[ipp]
-                                + 8.0 * gridX[ip]
-                                - 8.0 * gridX[im]
-                                + gridX[imm]
-                            ) / 12.0;
-
-                        y_xi =
-                            (
-                                - gridY[ipp]
-                                + 8.0 * gridY[ip]
-                                - 8.0 * gridY[im]
-                                + gridY[imm]
-                            ) / 12.0;
-
+                        x_xi = (- gridX[ipp] + 8.0 * gridX[ip] - 8.0 * gridX[im] + gridX[imm]) / 12.0;
+                        y_xi = (- gridY[ipp] + 8.0 * gridY[ip] - 8.0 * gridY[im] + gridY[imm]) / 12.0;
                     } else {
-
                         x_xi = 0.5 * (gridX[ip] - gridX[im]);
                         y_xi = 0.5 * (gridY[ip] - gridY[im]);
                     }
 
-                    const x_eta =
-                        (
-                            - gridX[jpp]
-                            + 8.0 * gridX[jp]
-                            - 8.0 * gridX[jm]
-                            + gridX[jmm]
-                        ) / 12.0;
-
-                    const y_eta =
-                        (
-                            - gridY[jpp]
-                            + 8.0 * gridY[jp]
-                            - 8.0 * gridY[jm]
-                            + gridY[jmm]
-                        ) / 12.0;
+                    const x_eta = (- gridX[jpp] + 8.0 * gridX[jp] - 8.0 * gridX[jm] + gridX[jmm]) / 12.0;
+                    const y_eta = (- gridY[jpp] + 8.0 * gridY[jp] - 8.0 * gridY[jm] + gridY[jmm]) / 12.0;
 
                     const Jac = x_xi * y_eta - x_eta * y_xi;
-
                     metrics.J[idx] = Jac;
 
                     const invJ = 1.0 / Jac;
-
                     metrics.xi_x[idx] = y_eta * invJ;
                     metrics.xi_y[idx] = -x_eta * invJ;
-
                     metrics.eta_x[idx] = -y_xi * invJ;
                     metrics.eta_y[idx] = x_xi * invJ;
 
-                    metrics.alpha[idx] =
-                        x_eta * x_eta + y_eta * y_eta;
-
-                    metrics.beta[idx] =
-                        x_xi * x_eta + y_xi * y_eta;
-
-                    metrics.gamma[idx] =
-                        x_xi * x_xi + y_xi * y_xi;
+                    metrics.alpha[idx] = x_eta * x_eta + y_eta * y_eta;
+                    metrics.beta[idx] = x_xi * x_eta + y_xi * y_eta;
+                    metrics.gamma[idx] = x_xi * x_xi + y_xi * y_xi;
                 }
             }
         }
@@ -614,6 +576,7 @@
             convV_old = new Float64Array(size);
             JU = new Float64Array(size);
             JV = new Float64Array(size);
+            src = new Float64Array(size);
 
             updateCfdParamsFromUi();
             const u_init = U_inf * Math.cos(Alpha_AoA);
@@ -628,6 +591,10 @@
             isFirstStep = true;
             maxCflGlobal = 0.0;
             maxDiffGlobal = 0.0;
+
+            cfdStepCount = 0;
+            cfdTotalTime = 0.0;
+
             computeMetrics();
         }
 
@@ -641,15 +608,11 @@
             return { cfl, diff };
         }
 
-        // =====================================================================
-        // 頂点コロケート法
-        //  コロケートやスタガードのような暗黙的な補間無
-        //  壁面に厳密にゼロ速度を定義、最近傍点でも安定的に2次精度
-        //  発散項の4次精度化で奇遇振動を解消
-        // =====================================================================
-
         function stepFlowSolver() {
             updateCfdParamsFromUi();
+
+            cfdStepCount++;
+            cfdTotalTime += dt;
 
             const size = imax * jmax;
             const u_inf_x = U_inf * Math.cos(Alpha_AoA);
@@ -667,15 +630,9 @@
                 vFlow[getIdx(imax - 1, j)] = u_inf_y;
             }
 
-            // =====================================================================
-            // Step 1: RHS構築
-            // =====================================================================
-
             for (let i = 1; i < imax - 1; i++) {
                 for (let j = 0; j < jmax - 1; j++) {
-
                     const idx = getIdx(i, j);
-
                     const stab = computeStabilityParameters(idx);
                     if (stab.cfl > localMaxCfl) localMaxCfl = stab.cfl;
                     if (stab.diff > localMaxDiff) localMaxDiff = stab.diff;
@@ -690,121 +647,49 @@
                     const ipp = getIdx(i + 2, j), imm = getIdx(i - 2, j);
                     const jpp = getIdx(i, j + 2), jmm = getIdx(i, j - 2);
 
-                    // -------------------------------------------------
-                    // 移流項
-                    //  壁面最近傍点を風上条件による2次精度中心/片側差分
-                    //  （境界適合格子かつ頂点コロケート格子のみ可）
-                    // -------------------------------------------------
                     let u_xi, v_xi, u_eta, v_eta;
 
                     if (i === 1) {
-
                         if (U > 0.0) {
-                            // 風上側 i-2 が存在しない → 2次中心差分（参照点が壁面または遠方境界で流速固定のため安定）
                             u_xi = (uFlow[ip] - uFlow[im]) * 0.5;
                             v_xi = (vFlow[ip] - vFlow[im]) * 0.5;
                         } else {
-                            // 風上側 i+2 が存在する → 2次風上差分
                             const ipp = getIdx(i + 2, j);
                             u_xi = (-uFlow[ipp] + 4.0 * uFlow[ip] - 3.0 * uFlow[idx]) * 0.5;
                             v_xi = (-vFlow[ipp] + 4.0 * vFlow[ip] - 3.0 * vFlow[idx]) * 0.5;
                         }
-
                     } else if (i === imax - 2) {
-
                         if (U > 0.0) {
-                            // 風上側 i-2 が存在する → 2次風上差分
                             u_xi = (3.0 * uFlow[idx] - 4.0 * uFlow[im] + uFlow[imm]) * 0.5;
                             v_xi = (3.0 * vFlow[idx] - 4.0 * vFlow[im] + vFlow[imm]) * 0.5;
                         } else {
-                            // 風上側 i+2 が存在しない → 2次中心差分（参照点が壁面または遠方境界で流速固定のため安定）
                             u_xi = (uFlow[ip] - uFlow[im]) * 0.5;
                             v_xi = (vFlow[ip] - vFlow[im]) * 0.5;
                         }
-
                     } else {
-
                         if (U > 0.0) {
-                            u_xi =
-                                (
-                                    2.0 * uFlow[ip]
-                                    + 3.0 * uFlow[idx]
-                                    - 6.0 * uFlow[im]
-                                    + uFlow[imm]
-                                ) / 6.0;
-                            v_xi =
-                                (
-                                    2.0 * vFlow[ip]
-                                    + 3.0 * vFlow[idx]
-                                    - 6.0 * vFlow[im]
-                                    + vFlow[imm]
-                                ) / 6.0;
+                            u_xi = (2.0 * uFlow[ip] + 3.0 * uFlow[idx] - 6.0 * uFlow[im] + uFlow[imm]) / 6.0;
+                            v_xi = (2.0 * vFlow[ip] + 3.0 * vFlow[idx] - 6.0 * vFlow[im] + vFlow[imm]) / 6.0;
                         } else {
-                            u_xi =
-                                (
-                                    -       uFlow[ipp]
-                                    + 6.0 * uFlow[ip]
-                                    - 3.0 * uFlow[idx]
-                                    - 2.0 * uFlow[im]
-                                ) / 6.0;
-                            v_xi =
-                                (
-                                    -       vFlow[ipp]
-                                    + 6.0 * vFlow[ip]
-                                    - 3.0 * vFlow[idx]
-                                    - 2.0 * vFlow[im]
-                                ) / 6.0;
+                            u_xi = (-uFlow[ipp] + 6.0 * uFlow[ip] - 3.0 * uFlow[idx] - 2.0 * uFlow[im]) / 6.0;
+                            v_xi = (-vFlow[ipp] + 6.0 * vFlow[ip] - 3.0 * vFlow[idx] - 2.0 * vFlow[im]) / 6.0;
                         }
                     }
 
                     if (V > 0.0) {
-                        u_eta =
-                            (
-                                2.0 * uFlow[jp]
-                                + 3.0 * uFlow[idx]
-                                - 6.0 * uFlow[jm]
-                                + uFlow[jmm]
-                            ) / 6.0;
-                        v_eta =
-                            (
-                                2.0 * vFlow[jp]
-                                + 3.0 * vFlow[idx]
-                                - 6.0 * vFlow[jm]
-                                + vFlow[jmm]
-                            ) / 6.0;
+                        u_eta = (2.0 * uFlow[jp] + 3.0 * uFlow[idx] - 6.0 * uFlow[jm] + uFlow[jmm]) / 6.0;
+                        v_eta = (2.0 * vFlow[jp] + 3.0 * vFlow[idx] - 6.0 * vFlow[jm] + vFlow[jmm]) / 6.0;
                     } else {
-                        u_eta =
-                            (
-                                -       uFlow[jpp]
-                                + 6.0 * uFlow[jp]
-                                - 3.0 * uFlow[idx]
-                                - 2.0 * uFlow[jm]
-                            ) / 6.0;
-                        v_eta =
-                            (
-                                -       vFlow[jpp]
-                                + 6.0 * vFlow[jp]
-                                - 3.0 * vFlow[idx]
-                                - 2.0 * vFlow[jm]
-                            ) / 6.0;
+                        u_eta = (-uFlow[jpp] + 6.0 * uFlow[jp] - 3.0 * uFlow[idx] - 2.0 * uFlow[jm]) / 6.0;
+                        v_eta = (-vFlow[jpp] + 6.0 * vFlow[jp] - 3.0 * vFlow[idx] - 2.0 * vFlow[jm]) / 6.0;
                     }
 
                     convU_n[idx] = U * u_xi + V * u_eta;
                     convV_n[idx] = U * v_xi + V * v_eta;
 
-                    // -------------------------------------------------
-                    // Adams-Bashforth法
-                    // -------------------------------------------------
-                    const ab_u = isFirstStep
-                        ? convU_n[idx]
-                        : 1.5 * convU_n[idx] - 0.5 * convU_old[idx];
-                    const ab_v = isFirstStep
-                        ? convV_n[idx]
-                        : 1.5 * convV_n[idx] - 0.5 * convV_old[idx];
+                    const ab_u = isFirstStep ? convU_n[idx] : 1.5 * convU_n[idx] - 0.5 * convU_old[idx];
+                    const ab_v = isFirstStep ? convV_n[idx] : 1.5 * convV_n[idx] - 0.5 * convV_old[idx];
 
-                    // -------------------------------------------------
-                    // 粘性項 Crank-Nicolson法
-                    // -------------------------------------------------
                     const J2 = metrics.J[idx] ** 2;
                     const inv_J2Re = 1.0 / (J2 * Re);
 
@@ -831,9 +716,6 @@
             maxCflGlobal = localMaxCfl;
             maxDiffGlobal = localMaxDiff;
 
-            // =====================================================================
-            // Step 2: 粘性項計算 Crank-Nicolson method
-            // =====================================================================
             uFlowTmp.set(rhsU);
             vFlowTmp.set(rhsV);
 
@@ -849,78 +731,32 @@
             const omega_u = 1.0;
 
             for (let iter = 0; iter < 5; iter++) {
-
                 for (let i = 1; i < imax - 1; i++) {
-
                     for (let j = 0; j < jmax - 1; j++) {
-
                         const idx = getIdx(i, j);
-
                         const ip = getIdx(i + 1, j), im = getIdx(i - 1, j);
                         const jp = getIdx(i, j + 1), jm = getIdx(i, j - 1);
-
                         const ipjp = getIdx(i + 1, j + 1), ipjm = getIdx(i + 1, j - 1);
                         const imjp = getIdx(i - 1, j + 1), imjm = getIdx(i - 1, j - 1);
 
-                        const u_xi_eta =
-                            0.25 * (
-                                uFlowTmp[ipjp]
-                                - uFlowTmp[ipjm]
-                                - uFlowTmp[imjp]
-                                + uFlowTmp[imjm]
-                            );
-
-                        const v_xi_eta =
-                            0.25 * (
-                                vFlowTmp[ipjp]
-                                - vFlowTmp[ipjm]
-                                - vFlowTmp[imjp]
-                                + vFlowTmp[imjm]
-                            );
+                        const u_xi_eta = 0.25 * (uFlowTmp[ipjp] - uFlowTmp[ipjm] - uFlowTmp[imjp] + uFlowTmp[imjm]);
+                        const v_xi_eta = 0.25 * (vFlowTmp[ipjp] - vFlowTmp[ipjm] - vFlowTmp[imjp] + vFlowTmp[imjm]);
 
                         const J2 = metrics.J[idx] ** 2;
+                        const ax = 0.5 * dt * metrics.alpha[idx] / (J2 * Re);
+                        const ay = 0.5 * dt * metrics.gamma[idx] / (J2 * Re);
+                        const abeta = 0.5 * dt * metrics.beta[idx] / (J2 * Re);
 
-                        const ax =
-                            0.5 * dt * metrics.alpha[idx] / (J2 * Re);
+                        const denom = 1.0 + 2.0 * ax + 2.0 * ay;
 
-                        const ay =
-                            0.5 * dt * metrics.gamma[idx] / (J2 * Re);
+                        const uTarget = (rhsU[idx] + ax * (uFlowTmp[ip] + uFlowTmp[im]) + ay * (uFlowTmp[jp] + uFlowTmp[jm]) - 2.0 * abeta * u_xi_eta) / denom;
+                        const vTarget = (rhsV[idx] + ax * (vFlowTmp[ip] + vFlowTmp[im]) + ay * (vFlowTmp[jp] + vFlowTmp[jm]) - 2.0 * abeta * v_xi_eta) / denom;
 
-                        const abeta =
-                            0.5 * dt * metrics.beta[idx] / (J2 * Re);
-
-                        const denom =
-                            1.0 + 2.0 * ax + 2.0 * ay;
-
-                        const uTarget =
-                            (
-                                rhsU[idx]
-                                + ax * (uFlowTmp[ip] + uFlowTmp[im])
-                                + ay * (uFlowTmp[jp] + uFlowTmp[jm])
-                                - 2.0 * abeta * u_xi_eta
-                            ) / denom;
-
-                        const vTarget =
-                            (
-                                rhsV[idx]
-                                + ax * (vFlowTmp[ip] + vFlowTmp[im])
-                                + ay * (vFlowTmp[jp] + vFlowTmp[jm])
-                                - 2.0 * abeta * v_xi_eta
-                            ) / denom;
-
-                        uFlowTmp[idx] +=
-                            omega_u * (uTarget - uFlowTmp[idx]);
-
-                        vFlowTmp[idx] +=
-                            omega_u * (vTarget - vFlowTmp[idx]);
+                        uFlowTmp[idx] += omega_u * (uTarget - uFlowTmp[idx]);
+                        vFlowTmp[idx] += omega_u * (vTarget - vFlowTmp[idx]);
                     }
                 }
             }
-
-            // =====================================================================
-            // Step 3: 発散計算
-            //   発散項を4次精度にすることで奇遇振動除去
-            // =====================================================================
 
             for (let i = 0; i < imax; i++) {
                 for (let j = 0; j < jmax; j++) {
@@ -931,38 +767,21 @@
                 }
             }
 
-            let src = new Float64Array(size);
-
             for (let i = 1; i < imax - 1; i++) {
-
                 for (let j = 0; j < jmax - 1; j++) {
-
                     const idx = getIdx(i, j);
                     const J = metrics.J[idx];
 
                     let dJU_dxi;
-
                     if (i >= 2 && i <= imax - 3) {
-
                         const ipp = getIdx(i + 2, j);
                         const ip = getIdx(i + 1, j);
                         const im = getIdx(i - 1, j);
                         const imm = getIdx(i - 2, j);
-
-                        dJU_dxi =
-                            (
-                                - JU[ipp]
-                                + 8.0 * JU[ip]
-                                - 8.0 * JU[im]
-                                + JU[imm]
-                            )
-                            / 12.0;
-
+                        dJU_dxi = (- JU[ipp] + 8.0 * JU[ip] - 8.0 * JU[im] + JU[imm]) / 12.0;
                     } else {
-
                         const ip = getIdx(i + 1, j);
                         const im = getIdx(i - 1, j);
-
                         dJU_dxi = (JU[ip] - JU[im]) / 2.0;
                     }
 
@@ -971,93 +790,42 @@
                     const jm = getIdx(i, j - 1);
                     const jmm = getIdx(i, j - 2);
 
-                    const dJV_deta =
-                        (
-                            - JV[jpp]
-                            + 8.0 * JV[jp]
-                            - 8.0 * JV[jm]
-                            + JV[jmm]
-                        )
-                        / 12.0;
+                    const dJV_deta = (- JV[jpp] + 8.0 * JV[jp] - 8.0 * JV[jm] + JV[jmm]) / 12.0;
 
                     src[idx] = (dJU_dxi + dJV_deta) / J;
                 }
             }
 
-            // =====================================================================
-            // Step 4: 圧力ポアソン方程式
-            // =====================================================================
-            const omega_sor = 1.8; // 緩和係数
+            const omega_sor = 1.8;
 
             for (let iter = 0; iter < 30; iter++) {
+                for (let i = 1; i < imax - 1; i++) {
+                    for (let j = 0; j < jmax - 1; j++) {
+                        const idx = getIdx(i, j);
+                        const ip = getIdx(i + 1, j), im = getIdx(i - 1, j);
+                        const jp = getIdx(i, j + 1), jm = getIdx(i, j - 1);
+                        const ipjp = getIdx(i + 1, j + 1), ipjm = getIdx(i + 1, j - 1);
+                        const imjp = getIdx(i - 1, j + 1), imjm = getIdx(i - 1, j - 1);
 
-                //for (let color = 0; color < 2; color++) {
+                        const pc_xi_eta = 0.25 * (pFlow[ipjp] - pFlow[ipjm] - pFlow[imjp] + pFlow[imjm]);
+                        const denom = 2.0 * (metrics.alpha[idx] + metrics.gamma[idx]);
 
-                    for (let i = 1; i < imax - 1; i++) {
+                        const target = (
+                            metrics.alpha[idx] * (pFlow[ip] + pFlow[im])
+                            + metrics.gamma[idx] * (pFlow[jp] + pFlow[jm])
+                            - 2.0 * metrics.beta[idx] * pc_xi_eta
+                            - (metrics.J[idx] ** 2) * src[idx] / dt
+                        ) / denom;
 
-                        for (let j = 0; j < jmax - 1; j++) {
-
-                            //if ((i + j) % 2 !== color) continue;
-
-                            const idx = getIdx(i, j);
-
-                            const ip = getIdx(i + 1, j);
-                            const im = getIdx(i - 1, j);
-
-                            const jp = getIdx(i, j + 1);
-                            const jm = getIdx(i, j - 1);
-
-                            const ipjp = getIdx(i + 1, j + 1);
-                            const ipjm = getIdx(i + 1, j - 1);
-
-                            const imjp = getIdx(i - 1, j + 1);
-                            const imjm = getIdx(i - 1, j - 1);
-
-                            const pc_xi_eta =
-                                0.25 * (
-                                    pFlow[ipjp]
-                                    - pFlow[ipjm]
-                                    - pFlow[imjp]
-                                    + pFlow[imjm]
-                                );
-
-                            const denom =
-                                2.0 * (
-                                    metrics.alpha[idx]
-                                    + metrics.gamma[idx]
-                                );
-
-                            //if (denom === 0.0) continue;
-
-                            const target =
-                                (
-                                    metrics.alpha[idx] *
-                                    (pFlow[ip] + pFlow[im])
-
-                                    + metrics.gamma[idx] *
-                                    (pFlow[jp] + pFlow[jm])
-
-                                    - 2.0 * metrics.beta[idx] * pc_xi_eta
-
-                                    - (metrics.J[idx] ** 2) * src[idx] / dt
-                                ) / denom;
-
-                            pFlow[idx] +=
-                                omega_sor * (target - pFlow[idx]);
-                        }
+                        pFlow[idx] += omega_sor * (target - pFlow[idx]);
                     }
+                }
 
-                    for (let j = 0; j < jmax; j++) {
-
-                        pFlow[getIdx(0, j)] =
-                            pFlow[getIdx(1, j)];
-                    }
-                //}
+                for (let j = 0; j < jmax; j++) {
+                    pFlow[getIdx(0, j)] = pFlow[getIdx(1, j)];
+                }
             }
 
-            // =====================================================================
-            // Step 5: 速度補正
-            // =====================================================================
             for (let i = 1; i < imax - 1; i++) {
                 for (let j = 0; j < jmax - 1; j++) {
                     const idx = getIdx(i, j);
@@ -1070,7 +838,6 @@
                     vFlow[idx] = vFlowTmp[idx] - dt * (metrics.xi_y[idx] * pc_xi + metrics.eta_y[idx] * pc_eta);
                 }
             }
-            // 周期境界条件は可視化用、計算には不要（getIdxによりj=jmax-1はj=0に飛ばされるため）
             for (let i = 0; i < imax; i++) {
                 uFlow[i * jmax + (jmax - 1)] = uFlow[i * jmax + 0];
                 vFlow[i * jmax + (jmax - 1)] = vFlow[i * jmax + 0];
@@ -1112,10 +879,6 @@
                 else if (norm < 0.750) { r = 255; g = 100; b = 0; }
                 else if (norm < 0.875) { r = 255; g = 0; b = 0; }
                 else { r = 255; g = 210; b = 210; }
-            } else {
-                if (norm < 0.3) { r = 40; g = 180; b = 40; }
-                else if (norm < 0.6) { r = 230; g = 190; b = 0; }
-                else { r = 230; g = 40; b = 40; }
             }
             return `rgba(${r}, ${g}, ${b}, 0.82)`;
         }
@@ -1131,264 +894,91 @@
             };
         }
 
-        function getRotatedVector(u, v) {
-            const cosA = Math.cos(-Alpha_AoA);
-            const sinA = Math.sin(-Alpha_AoA);
-            return {
-                u_rot: u * cosA - v * sinA,
-                v_rot: u * sinA + v * cosA
-            };
-        }
-
-        // =====================================================================
-        // 空力係数計算: CL・CD
-        //
-        // 翼面（i=0）における圧力力と粘性力の面積分。
-        //
-        // 【法線方向の符号について】
-        //   O格子の翼面を j=0（後縁）→ j=jmax/2（前縁）→ j=jmax-1（後縁）
-        //   と辿ると物理座標系（x右, y上）で時計回り（CW）になる。
-        //   CW周回に対する外向き法線（翼から流体方向）× ds = (dy, -dx)
-        //   where dx = x[j+1]-x[j], dy = y[j+1]-y[j]
-        //
-        // 【圧力力】
-        //   dF_p = -p * n_out * ds
-        //   → dFx = -p * dy,  dFy = p * dx
-        //
-        // 【粘性力】
-        //   壁面（i=0）はno-slip → u=v=0 → ∂u/∂η|wall=0
-        //   壁法線方向（ξ方向）の速度勾配のみ残る:
-        //   ∂u/∂x ≈ ξ_x * uFlow[1,j],  ∂u/∂y ≈ ξ_y * uFlow[1,j]
-        //   粘性応力テンソルをn_outに掛けて積分
-        //
-        // 【係数化】
-        //   ρ=1, U∞=1, c=1 → q=0.5 → CL = 2*FL, CD = 2*FD
-        // =====================================================================
         function computeForceCoefficients() {
-            if (!metrics || !pFlow || !uFlow || !vFlow) return null;
+            if (!metrics || !pFlow || !uFlow || !vFlow || !gridX || !gridY) return null;
 
             let Fx_p = 0.0, Fy_p = 0.0;
             let Fx_v = 0.0, Fy_v = 0.0;
 
             for (let j = 0; j < jmax - 1; j++) {
-
                 const idx0_j = getIdx(0, j);
                 const idx0_j1 = getIdx(0, j + 1);
-
                 const idx1_j = getIdx(1, j);
                 const idx1_j1 = getIdx(1, j + 1);
-
                 const idx2_j = getIdx(2, j);
                 const idx2_j1 = getIdx(2, j + 1);
 
-                // =========================================================
-                // Wall edge vector
-                // =========================================================
+                const dx = gridX[idx0_j1] - gridX[idx0_j];
+                const dy = gridY[idx0_j1] - gridY[idx0_j];
 
-                const dx =
-                    gridX[idx0_j1] - gridX[idx0_j];
-
-                const dy =
-                    gridY[idx0_j1] - gridY[idx0_j];
-
-                // outward normal * ds (CW ordering)
                 const nx_ds = dy;
                 const ny_ds = -dx;
 
-                // =========================================================
-                // Pressure force
-                // =========================================================
-
-                const p_face =
-                    0.5 * (
-                        pFlow[idx1_j]
-                        + pFlow[idx1_j1]
-                    );
+                const p_face = 0.5 * (pFlow[idx1_j] + pFlow[idx1_j1]);
 
                 Fx_p += -p_face * nx_ds;
                 Fy_p += -p_face * ny_ds;
 
-                // =========================================================
-                // Wall-normal vectors at j and j+1
-                // =========================================================
+                const delta_x_j = gridX[idx1_j] - gridX[idx0_j];
+                const delta_y_j = gridY[idx1_j] - gridY[idx0_j];
+                const delta_x_j1 = gridX[idx1_j1] - gridX[idx0_j1];
+                const delta_y_j1 = gridY[idx1_j1] - gridY[idx0_j1];
 
-                const delta_x_j =
-                    gridX[idx1_j] - gridX[idx0_j];
-
-                const delta_y_j =
-                    gridY[idx1_j] - gridY[idx0_j];
-
-                const delta_x_j1 =
-                    gridX[idx1_j1] - gridX[idx0_j1];
-
-                const delta_y_j1 =
-                    gridY[idx1_j1] - gridY[idx0_j1];
-
-                const ds_j = Math.sqrt(
-                    delta_x_j * delta_x_j +
-                    delta_y_j * delta_y_j
-                );
-
-                const ds_j1 = Math.sqrt(
-                    delta_x_j1 * delta_x_j1 +
-                    delta_y_j1 * delta_y_j1
-                );
+                const ds_j = Math.sqrt(delta_x_j * delta_x_j + delta_y_j * delta_y_j);
+                const ds_j1 = Math.sqrt(delta_x_j1 * delta_x_j1 + delta_y_j1 * delta_y_j1);
 
                 if (ds_j < 1e-12 || ds_j1 < 1e-12) continue;
 
-                // =========================================================
-                // 2nd-order one-sided wall-normal derivatives
-                // =========================================================
+                const du_dn_j = (4.0 * uFlow[idx1_j] - uFlow[idx2_j]) / (2.0 * ds_j);
+                const dv_dn_j = (4.0 * vFlow[idx1_j] - vFlow[idx2_j]) / (2.0 * ds_j);
+                const du_dn_j1 = (4.0 * uFlow[idx1_j1] - uFlow[idx2_j1]) / (2.0 * ds_j1);
+                const dv_dn_j1 = (4.0 * vFlow[idx1_j1] - vFlow[idx2_j1]) / (2.0 * ds_j1);
 
-                const du_dn_j =
-                    (
-                        4.0 * uFlow[idx1_j]
-                        - uFlow[idx2_j]
-                    ) / (2.0 * ds_j);
-
-                const dv_dn_j =
-                    (
-                        4.0 * vFlow[idx1_j]
-                        - vFlow[idx2_j]
-                    ) / (2.0 * ds_j);
-
-                const du_dn_j1 =
-                    (
-                        4.0 * uFlow[idx1_j1]
-                        - uFlow[idx2_j1]
-                    ) / (2.0 * ds_j1);
-
-                const dv_dn_j1 =
-                    (
-                        4.0 * vFlow[idx1_j1]
-                        - vFlow[idx2_j1]
-                    ) / (2.0 * ds_j1);
-
-                // =========================================================
-                // Face-center wall-normal direction
-                // =========================================================
-
-                const delta_x =
-                    0.5 * (
-                        delta_x_j +
-                        delta_x_j1
-                    );
-
-                const delta_y =
-                    0.5 * (
-                        delta_y_j +
-                        delta_y_j1
-                    );
-
-                const ds_face = Math.sqrt(
-                    delta_x * delta_x +
-                    delta_y * delta_y
-                );
+                const delta_x = 0.5 * (delta_x_j + delta_x_j1);
+                const delta_y = 0.5 * (delta_y_j + delta_y_j1);
+                const ds_face = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
 
                 if (ds_face < 1e-12) continue;
 
                 const n_xi_x = delta_x / ds_face;
                 const n_xi_y = delta_y / ds_face;
 
-                // =========================================================
-                // Face-center averaged derivatives
-                // =========================================================
-
-                const du_dn =
-                    0.5 * (
-                        du_dn_j +
-                        du_dn_j1
-                    );
-
-                const dv_dn =
-                    0.5 * (
-                        dv_dn_j +
-                        dv_dn_j1
-                    );
-
-                // =========================================================
-                // Velocity gradient tensor
-                // =========================================================
+                const du_dn = 0.5 * (du_dn_j + du_dn_j1);
+                const dv_dn = 0.5 * (dv_dn_j + dv_dn_j1);
 
                 const du_dx = n_xi_x * du_dn;
                 const du_dy = n_xi_y * du_dn;
-
                 const dv_dx = n_xi_x * dv_dn;
                 const dv_dy = n_xi_y * dv_dn;
 
-                // =========================================================
-                // Newtonian viscous stress tensor
-                // =========================================================
+                const tau_xx = (2.0 / Re) * du_dx;
+                const tau_xy = (1.0 / Re) * (du_dy + dv_dx);
+                const tau_yy = (2.0 / Re) * dv_dy;
 
-                const tau_xx =
-                    (2.0 / Re) * du_dx;
-
-                const tau_xy =
-                    (1.0 / Re) * (
-                        du_dy + dv_dx
-                    );
-
-                const tau_yy =
-                    (2.0 / Re) * dv_dy;
-
-                // =========================================================
-                // Viscous traction
-                // =========================================================
-
-                Fx_v +=
-                    tau_xx * nx_ds +
-                    tau_xy * ny_ds;
-
-                Fy_v +=
-                    tau_xy * nx_ds +
-                    tau_yy * ny_ds;
+                Fx_v += tau_xx * nx_ds + tau_xy * ny_ds;
+                Fy_v += tau_xy * nx_ds + tau_yy * ny_ds;
             }
 
             const Fx = Fx_p + Fx_v;
             const Fy = Fy_p + Fy_v;
 
-            // =============================================================
-            // Lift / Drag projection
-            // =============================================================
-
             const cosA = Math.cos(Alpha_AoA);
             const sinA = Math.sin(Alpha_AoA);
 
-            const F_drag =
-                Fx * cosA +
-                Fy * sinA;
-
-            const F_lift =
-                -Fx * sinA +
-                Fy * cosA;
-
-            const F_lift_p =
-                -Fx_p * sinA +
-                Fy_p * cosA;
-
-            const F_drag_v =
-                Fx_v * cosA +
-                Fy_v * sinA;
-
-            // =============================================================
-            // Force coefficients
-            // rho = 1, Uinf = 1, chord = 1
-            // q = 0.5
-            // =============================================================
+            const F_drag = Fx * cosA + Fy * sinA;
+            const F_lift = -Fx * sinA + Fy * cosA;
 
             return {
                 CL: 2.0 * F_lift,
-                CD: 2.0 * F_drag,
-                CL_p: 2.0 * F_lift_p,
-                CD_f: 2.0 * F_drag_v,
+                CD: 2.0 * F_drag
             };
         }
 
         function renderGrid() {
+            if (!gridX || !gridY) return;
             const viewMode = viewModeSelect.value;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 可視化ウィンドウの描画
             if (viewMode !== 'meshOnly') {
                 for (let i = 0; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
@@ -1402,89 +992,47 @@
 
                         let color = "rgba(200,200,200,0.5)";
 
-                        if (viewMode === 'velocity') {
+                        if (viewMode === 'velocity' && uFlow && vFlow) {
                             const u = 0.25 * (uFlow[idx00] + uFlow[idx10] + uFlow[idx11] + uFlow[idx01]);
                             const v = 0.25 * (vFlow[idx00] + vFlow[idx10] + vFlow[idx11] + vFlow[idx01]);
                             color = getDiscreteColor(Math.hypot(u, v), 0.0, U_inf * 1.6, 'colormap_eight');
 
-                        } else if (viewMode === 'pressure') {
+                        } else if (viewMode === 'pressure' && pFlow) {
                             const p = 0.25 * (pFlow[idx00] + pFlow[idx10] + pFlow[idx11] + pFlow[idx01]);
                             color = getDiscreteColor(p, -1.0, 0.5, 'colormap_seven');
 
-                        } else if (viewMode === 'vorticity') {
-
-                            function clamp(v, vmin, vmax) {
-                                return Math.max(vmin, Math.min(vmax, v));
-                            }
-
+                        } else if (viewMode === 'vorticity' && uFlow && vFlow) {
+                            function clamp(v, vmin, vmax) { return Math.max(vmin, Math.min(vmax, v)); }
                             function getVorticity(ii, jj) {
-
                                 const ic = clamp(ii, 1, imax - 2);
                                 const jc = clamp(jj, 1, jmax - 2);
 
                                 const idx_ip = getIdx(ic + 1, jc);
                                 const idx_im = getIdx(ic - 1, jc);
-
                                 const idx_jp = getIdx(ic, jc + 1);
                                 const idx_jm = getIdx(ic, jc - 1);
 
-                                const x_xi =
-                                    0.5 * (gridX[idx_ip] - gridX[idx_im]);
+                                const x_xi = 0.5 * (gridX[idx_ip] - gridX[idx_im]);
+                                const y_xi = 0.5 * (gridY[idx_ip] - gridY[idx_im]);
+                                const x_eta = 0.5 * (gridX[idx_jp] - gridX[idx_jm]);
+                                const y_eta = 0.5 * (gridY[idx_jp] - gridY[idx_jm]);
 
-                                const y_xi =
-                                    0.5 * (gridY[idx_ip] - gridY[idx_im]);
+                                const J = x_xi * y_eta - x_eta * y_xi;
+                                if (Math.abs(J) < 1.0e-12) return 0.0;
 
-                                const x_eta =
-                                    0.5 * (gridX[idx_jp] - gridX[idx_jm]);
+                                const u_xi = 0.5 * (uFlow[idx_ip] - uFlow[idx_im]);
+                                const u_eta = 0.5 * (uFlow[idx_jp] - uFlow[idx_jm]);
+                                const v_xi = 0.5 * (vFlow[idx_ip] - vFlow[idx_im]);
+                                const v_eta = 0.5 * (vFlow[idx_jp] - vFlow[idx_jm]);
 
-                                const y_eta =
-                                    0.5 * (gridY[idx_jp] - gridY[idx_jm]);
-
-                                const J =
-                                    x_xi * y_eta -
-                                    x_eta * y_xi;
-
-                                if (Math.abs(J) < 1.0e-12) {
-                                    return 0.0;
-                                }
-
-                                const u_xi =
-                                    0.5 * (uFlow[idx_ip] - uFlow[idx_im]);
-
-                                const u_eta =
-                                    0.5 * (uFlow[idx_jp] - uFlow[idx_jm]);
-
-                                const v_xi =
-                                    0.5 * (vFlow[idx_ip] - vFlow[idx_im]);
-
-                                const v_eta =
-                                    0.5 * (vFlow[idx_jp] - vFlow[idx_jm]);
-
-                                const dv_dx =
-                                    (y_eta * v_xi -
-                                        y_xi * v_eta) / J;
-
-                                const du_dy =
-                                    (-x_eta * u_xi +
-                                        x_xi * u_eta) / J;
+                                const dv_dx = (y_eta * v_xi - y_xi * v_eta) / J;
+                                const du_dy = (-x_eta * u_xi + x_xi * u_eta) / J;
 
                                 return dv_dx - du_dy;
                             }
 
-                            const vort =
-                                0.25 * (
-                                    getVorticity(i, j) +
-                                    getVorticity(i + 1, j) +
-                                    getVorticity(i + 1, j + 1) +
-                                    getVorticity(i, j + 1)
-                                );
-
-                            color = getDiscreteColor(
-                                vort,
-                                -50.0,
-                                50.0,
-                                'colormap_seven2'
-                            );
+                            const vort = 0.25 * (getVorticity(i, j) + getVorticity(i + 1, j) + getVorticity(i + 1, j + 1) + getVorticity(i, j + 1));
+                            color = getDiscreteColor(vort, -50.0, 50.0, 'colormap_seven2');
                         }
 
                         ctx.fillStyle = color;
@@ -1499,7 +1047,6 @@
                 }
             }
 
-            // 2. メッシュワイヤーフレーム
             ctx.strokeStyle = (viewMode === 'meshOnly') ? '#2c3e50' : 'rgba(30, 40, 50, 0.12)';
             ctx.lineWidth = 0.35;
 
@@ -1525,7 +1072,6 @@
                 ctx.stroke();
             }
 
-            // 3. 翼形状アウトライン
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 1.0;
             ctx.beginPath();
@@ -1536,36 +1082,50 @@
             }
             ctx.stroke();
 
-            // 4. 情報表示パネル
+            const nacaM = parseInt(document.getElementById('mInput').value) || 0;
+            const nacaP = parseInt(document.getElementById('pInput').value) || 0;
+            const nacaXX = (parseInt(document.getElementById('xxInput').value) || 0).toString().padStart(2, '0');
+            const airfoilName = `NACA${nacaM}${nacaP}${nacaXX}`;
+
             ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-            ctx.fillRect(15, 15, 270, 95);
+            ctx.fillRect(15, 15, 285, 130);
             ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
             ctx.lineWidth = 1;
-            ctx.strokeRect(15, 15, 270, 95);
+            ctx.strokeRect(15, 15, 285, 130);
 
             ctx.font = "bold 13px 'Courier New', monospace";
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(`${airfoilName}`, 25, 35);
+
             ctx.fillStyle = "#ffffff";
             const currentAoaDeg = (Alpha_AoA * 180.0 / Math.PI).toFixed(1);
-            ctx.fillText(`Angle of Attack: ${currentAoaDeg}°`, 25, 35);
+            ctx.fillText(`AoA: ${currentAoaDeg}°`, 25, 57);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(`Re: ${Re}`, 135, 57);
 
             ctx.fillStyle = (maxCflGlobal > 1.0) ? "#ff4d4d" : (maxCflGlobal > 0.5) ? "#ffcc00" : "#00ff66";
-            ctx.fillText(`Max Courant Num: ${maxCflGlobal.toFixed(4)}`, 25, 55);
-
+            ctx.fillText(`CFL: ${maxCflGlobal.toFixed(4)}`, 25, 79);
             ctx.fillStyle = (maxDiffGlobal > 1.0) ? "#ff4d4d" : (maxDiffGlobal > 0.1) ? "#ffcc00" : "#00ff66";
-            ctx.fillText(`Max Diffusion Num: ${maxDiffGlobal.toFixed(4)}`, 25, 75);
+            ctx.fillText(`Diff: ${maxDiffGlobal.toFixed(4)}`, 135, 79);
 
-            // CL・CD表示
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(`Step: ${cfdStepCount}`, 25, 101);
+            ctx.fillText(`Time: ${cfdTotalTime.toFixed(6)}`, 135, 101);
+
             const coeffs = computeForceCoefficients();
             if (coeffs) {
-                ctx.fillStyle = "#ffaa88";
-                ctx.fillText(`CD: ${coeffs.CD.toFixed(4)}`, 140, 98);
                 ctx.fillStyle = "#88ccff";
-                ctx.fillText(`CL: ${coeffs.CL.toFixed(4)}`, 25, 98);
+                ctx.fillText(`CL: ${coeffs.CL.toFixed(4)}`, 25, 123);
+                ctx.fillStyle = "#ffaa88";
+                ctx.fillText(`CD: ${coeffs.CD.toFixed(4)}`, 135, 123);
             }
         }
 
         function updateAndRender() {
             generateInitialAlgebraicGrid();
+            smoothGridElliptic();
+            initCfdBuffers();
             renderGrid();
         }
 
@@ -1589,26 +1149,43 @@
                 }
             });
         }
-        setupLinkedInputs(drRange, drNum, false);
-        setupLinkedInputs(psiInput, psiNum, false);
+        setupLinkedInputs(rRatioRange, rRatioNum, false);
         setupLinkedInputs(aoaRange, aoaNum, true);
 
         viewModeSelect.addEventListener('change', renderGrid);
 
-        [reInput, dtInput].forEach(input => {
+        reInput.addEventListener('change', () => {
+            updateCfdParamsFromUi();
+            generateInitialAlgebraicGrid();
+            smoothGridElliptic();
+            renderGrid();
+        });
+
+        dtInput.addEventListener('change', () => {
+            updateCfdParamsFromUi();
+            renderGrid();
+        });
+
+        // フォーム群のイベントリスナー（入力途中のバリデーション条件を厳格化）
+        [imaxInput, jmaxInput, mInput, pInput, xxInput].forEach(input => {
+            // 入力途中(input)の処理
             input.addEventListener('input', () => {
-                updateCfdParamsFromUi();
+                // 【重要】ここで厳格なチェックを適用し、範囲外（1桁の途中状態など）なら何もしない
+                const validVal = getStrictValidatedValue(input);
+                if (validVal === null) return;
+
+                generateInitialAlgebraicGrid();
+                smoothGridElliptic();
                 renderGrid();
             });
-        });
 
-        [imaxInput, jmaxInput, mInput, pInput, xxInput].forEach(input => {
-            input.addEventListener('input', updateAndRender);
-        });
-
-        solveEllipticBtn.addEventListener('click', () => {
-            smoothGridElliptic(50);
-            renderGrid();
+            // 入力完了時(change: フォーカスアウトやEnter時)の処理
+            input.addEventListener('change', () => {
+                clampInputValue(input); // ここで最小値・最大値に安全に強制補正
+                updateAndRender();
+                smoothGridElliptic();
+                renderGrid();
+            });
         });
 
         function cfdLoop() {
@@ -1623,11 +1200,11 @@
         toggleCfdBtn.addEventListener('click', () => {
             isCfdRunning = !isCfdRunning;
             if (isCfdRunning) {
-                toggleCfdBtn.innerText = "CFD計算 停止";
+                toggleCfdBtn.innerText = "Stop";
                 toggleCfdBtn.style.background = "#c0392b";
                 cfdLoop();
             } else {
-                toggleCfdBtn.innerText = "CFD計算 開始";
+                toggleCfdBtn.innerText = "Start";
                 toggleCfdBtn.style.background = "#e67e22";
             }
         });
@@ -1660,7 +1237,9 @@
         window.addEventListener('mouseup', () => { isDragging = false; });
 
         updateCfdParamsFromUi();
-        updateAndRender();
+        generateInitialAlgebraicGrid();
+        smoothGridElliptic();
+        renderGrid();
     </script>
 </body>
 </html>
