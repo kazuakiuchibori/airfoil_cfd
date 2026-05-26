@@ -680,8 +680,8 @@
                         - 2.0 * metrics.beta[idx] * v_xi_eta_n
                     ) * inv_J2Re;
 
-                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + lap_u_n);
-                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + lap_v_n);
+                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + 0.5 * lap_u_n);
+                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + 0.5 * lap_v_n);
                 }
             }
 
@@ -699,7 +699,7 @@
 
             const omega_u = 1.0;
 
-            for (let iter = 0; iter < 10; iter++) {
+            for (let iter = 0; iter < 5; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
@@ -712,9 +712,9 @@
                         const v_xi_eta = 0.25 * (vFlowTmp[ipjp] - vFlowTmp[ipjm] - vFlowTmp[imjp] + vFlowTmp[imjm]);
 
                         const J2 = metrics.J[idx] ** 2;
-                        const ax = dt * metrics.alpha[idx] / (J2 * Re);
-                        const ay = dt * metrics.gamma[idx] / (J2 * Re);
-                        const abeta = dt * metrics.beta[idx] / (J2 * Re);
+                        const ax = 0.5 * dt * metrics.alpha[idx] / (J2 * Re);
+                        const ay = 0.5 * dt * metrics.gamma[idx] / (J2 * Re);
+                        const abeta = 0.5 * dt * metrics.beta[idx] / (J2 * Re);
 
                         const denom = 1.0 + 2.0 * ax + 2.0 * ay;
 
@@ -761,7 +761,7 @@
 
                     const dJV_deta = (- JV[jpp] + 8.0 * JV[jp] - 8.0 * JV[jm] + JV[jmm]) / 12.0;
 
-                    src[idx] = (dJU_dxi + dJV_deta) / J;
+                    src[idx] = (dJU_dxi + dJV_deta) / J / dt;
                 }
             }
 
@@ -783,7 +783,7 @@
                             metrics.alpha[idx] * (pFlow[ip] + pFlow[im])
                             + metrics.gamma[idx] * (pFlow[jp] + pFlow[jm])
                             - 2.0 * metrics.beta[idx] * pc_xi_eta
-                            - (metrics.J[idx] ** 2) * src[idx] / dt
+                            - (metrics.J[idx] ** 2) * src[idx]
                         ) / denom;
 
                         pFlow[idx] += omega_p * (target - pFlow[idx]);
@@ -818,7 +818,7 @@
         function getDiscreteColor(value, minV, maxV, mode) {
             let norm = (value - minV) / (maxV - minV || 1.0);
             norm = Math.min(1.0, Math.max(0.0, norm));
-            const bands = 12;
+            const bands = 2*7*8;
             norm = Math.floor(norm * bands) / bands;
 
             let r = 0, g = 0, b = 0;
@@ -833,19 +833,19 @@
                 else { r = 255; g = 210; b = 210; }
             }
             else if (mode === 'colormap_pressure') {
-                if (norm < 0.125) { r = 100; g = 0; b = 200; }
-                else if (norm < 0.250) { r = 0; g = 100; b = 255; }
-                else if (norm < 0.375) { r = 0; g = 220; b = 255; }
-                else if (norm < 0.625) { r = 0; g = 230; b = 100; }
-                else if (norm < 0.750) { r = 240; g = 230; b = 0; }
-                else if (norm < 0.875) { r = 255; g = 110; b = 0; }
+                if (norm < 0.143) { r = 100; g = 0; b = 200; }
+                else if (norm < 0.286) { r = 0; g = 100; b = 255; }
+                else if (norm < 0.423) { r = 0; g = 220; b = 255; }
+                else if (norm < 0.571) { r = 0; g = 230; b = 100; }
+                else if (norm < 0.714) { r = 240; g = 230; b = 0; }
+                else if (norm < 0.857) { r = 255; g = 110; b = 0; }
                 else { r = 255; g = 0; b = 0; }
             }
             else if (mode === 'colormap_vorticity') {
                 if (norm < 0.125) { r = 100; g = 0; b = 200; }
                 else if (norm < 0.250) { r = 0; g = 100; b = 255; }
-                else if (norm < 0.400) { r = 0; g = 220; b = 255; }
-                else if (norm < 0.600) { r = 127; g = 127; b = 127; }
+                else if (norm < 0.375) { r = 0; g = 220; b = 255; }
+                else if (norm < 0.625) { r = 127; g = 127; b = 127; }
                 else if (norm < 0.750) { r = 240; g = 230; b = 0; }
                 else if (norm < 0.875) { r = 255; g = 110; b = 0; }
                 else { r = 255; g = 0; b = 0; }
@@ -965,11 +965,11 @@
                         if (viewMode === 'velocity' && uFlow && vFlow) {
                             const u = 0.25 * (uFlow[idx00] + uFlow[idx10] + uFlow[idx11] + uFlow[idx01]);
                             const v = 0.25 * (vFlow[idx00] + vFlow[idx10] + vFlow[idx11] + vFlow[idx01]);
-                            color = getDiscreteColor(Math.hypot(u, v), 0.0, U_inf * 1.6, 'colormap_velocity');
+                            color = getDiscreteColor(Math.hypot(u, v), 0.0, U_inf * 2.0, 'colormap_velocity');
 
                         } else if (viewMode === 'pressure' && pFlow) {
                             const p = 0.25 * (pFlow[idx00] + pFlow[idx10] + pFlow[idx11] + pFlow[idx01]);
-                            color = getDiscreteColor(p, -1.0, 0.5, 'colormap_pressure');
+                            color = getDiscreteColor(p, -1.25, 0.5, 'colormap_pressure');
 
                         } else if (viewMode === 'vorticity' && uFlow && vFlow) {
                             function clamp(v, vmin, vmax) { return Math.max(vmin, Math.min(vmax, v)); }
@@ -1017,8 +1017,8 @@
                 }
             }
 
-            ctx.strokeStyle = (viewMode === 'meshOnly') ? '#2c3e50' : 'rgba(30, 40, 50, 0.12)';
-            ctx.lineWidth = 0.35;
+            ctx.strokeStyle = (viewMode === 'meshOnly') ? '#000000' : 'rgba(127, 127, 127, 0.01)';
+            ctx.lineWidth = 1.0;
 
             for (let i = 0; i < imax; i++) {
                 ctx.beginPath();
