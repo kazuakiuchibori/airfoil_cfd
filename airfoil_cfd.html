@@ -54,11 +54,6 @@
             padding-left: 10px;
         }
 
-        .grid-group {
-            border-left: 3px solid #3498db;
-            padding-left: 10px;
-        }
-
         .cfd-group {
             border-left: 3px solid #f39c12;
             padding-left: 10px;
@@ -85,7 +80,7 @@
                 margin-bottom: 0;
             }
 
-        input[type="number"], input[type="range"], select, button {
+        input[type="number"], select, button {
             width: 100%;
             box-sizing: border-box;
         }
@@ -121,18 +116,6 @@
 
             .btn-cfd:hover {
                 background: #d35400;
-            }
-
-        .range-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-            .range-container input[type="number"] {
-                width: 55px;
-                padding: 2px 4px;
-                font-size: 11px;
             }
 
         .btn-container {
@@ -177,21 +160,10 @@
                 </div>
             </div>
 
-            <div class="control-group grid-group">
-                <div class="input-item">
-                    <label for="imaxInput">IMAX (半径方向数: 20~200):</label>
-                    <input type="number" id="imaxInput" min="20" max="200" value="60">
-                </div>
-                <div class="input-item">
-                    <label for="jmaxInput">JMAX (周方向数: 40~400):</label>
-                    <input type="number" id="jmaxInput" min="40" max="400" value="120">
-                </div>
-            </div>
-
             <div class="control-group cfd-group">
                 <div class="input-item">
                     <label for="reInput">Re (レイノルズ数):</label>
-                    <input type="number" id="reInput" min="100" max="10000000" step="100" value="10000">
+                    <input type="number" id="reInput" min="1000" max="10000000" step="1000" value="10000">
                 </div>
                 <div class="input-item">
                     <label for="aoaRange">Alpha (迎角):</label>
@@ -235,22 +207,19 @@
         const reInput = document.getElementById('reInput');
         const aoaNum = document.getElementById('aoaNum');
 
-        const imaxInput = document.getElementById('imaxInput');
-        const jmaxInput = document.getElementById('jmaxInput');
-
         const mInput = document.getElementById('mInput');
         const pInput = document.getElementById('pInput');
         const xxInput = document.getElementById('xxInput');
 
-        let scale = 260.0;
+        let scale = 500.0;
         let offsetX = canvas.width / 2 - 50;
         let offsetY = canvas.height / 2;
         let isDragging = false;
         let startX = 0;
         let startY = 0;
 
-        // 格子データ
-        let imax = 60, jmax = 120;
+        // 格子データ（imaxは固定、jmaxはReから自動決定）
+        let imax = 64, jmax = 128;
         let gridX = null, gridY = null;
 
         // 楕円緩和用の自動決定パラメータの内部保持
@@ -271,7 +240,7 @@
         let isCfdRunning = false;
         let dt = 0.0001;
         let targetCFL = 0.5; // 固定CFL（可変dt制御）
-        let Re = 100000;
+        let Re = 10000;
         const U_inf = 1.0;
         let Alpha_AoA = 8.0 * Math.PI / 180.0;
 
@@ -294,13 +263,16 @@
             let rawRe = parseFloat(reInput.value);
             if (isNaN(rawRe)) rawRe = 10000;
 
-            Re = Math.max(100, Math.min(10000000, rawRe));
+            Re = Math.max(1000, Math.min(10000000, rawRe));
             reInput.value = Re;
+
+            // Reの変更に合わせてjmaxを動的に自動決定 (四捨五入して整数化)
+            const logRe = Math.log10(Re);
+            jmax = Math.round(logRe * 32);
 
             const deg = parseFloat(aoaNum.value) || 0.0;
             Alpha_AoA = deg * Math.PI / 180.0;
 
-            const logRe = Math.log10(Re);
             currentAStrength = 0.2 + 0.02 * logRe;
             currentBDecay = 0.2 - 0.02 * logRe;
         }
@@ -345,7 +317,7 @@
             return val;
         }
 
-        // 【今回の変更点】入力途中でMin Maxの境界を厳格に評価し、範囲外ならnullを返すガード関数
+        // 入力途中でMin Maxの境界を厳格に評価し、範囲外ならnullを返すガード関数
         function getStrictValidatedValue(inputEl) {
             let val = parseInt(inputEl.value);
             if (isNaN(val)) return null;
@@ -353,21 +325,15 @@
             const minV = parseInt(inputEl.getAttribute('min'));
             const maxV = parseInt(inputEl.getAttribute('max'));
 
-            // 範囲外の値が入力されているときは、処理を進めずnullにする
             if (val < minV || val > maxV) return null;
             return val;
         }
 
         function generateInitialAlgebraicGrid() {
-            // 入力途中であっても、Min Maxを満たしている正常な数値のときのみ更新を許可する
-            const validImax = getStrictValidatedValue(imaxInput);
-            const validJmax = getStrictValidatedValue(jmaxInput);
+            // UIから更新される形状パラメータのバリデーション
             const validM = getStrictValidatedValue(mInput);
             const validP = getStrictValidatedValue(pInput);
             const validXx = getStrictValidatedValue(xxInput);
-
-            if (validImax !== null) imax = validImax;
-            if (validJmax !== null) jmax = validJmax;
 
             // 形状パラメータも安全な一時変数として処理
             const m = (validM !== null) ? validM : (parseInt(mInput.getAttribute('min')) || 0);
@@ -560,7 +526,6 @@
             JV = new Float64Array(size);
             src = new Float64Array(size);
 
-            updateCfdParamsFromUi();
             const u_init = U_inf * Math.cos(Alpha_AoA);
             const v_init = U_inf * Math.sin(Alpha_AoA);
 
@@ -610,13 +575,10 @@
             }
             let dtNew = 1.0;
             if (maxConv > 1.0e-12) dtNew = Math.min(dtNew, targetCFL / maxConv);
-            //if (maxDiff  > 1.0e-12) dtNew = Math.min(dtNew, 0.5 / maxDiff);
             dt = dtNew;
         }
 
         function stepFlowSolver() {
-            updateCfdParamsFromUi();
-
             const u_inf_x = U_inf * Math.cos(Alpha_AoA);
             const u_inf_y = U_inf * Math.sin(Alpha_AoA);
 
@@ -860,25 +822,7 @@
             norm = Math.floor(norm * bands) / bands;
 
             let r = 0, g = 0, b = 0;
-            if (mode === 'colormap_seven') {
-                if (norm < 0.125) { r = 100; g = 0; b = 200; }
-                else if (norm < 0.250) { r = 0; g = 100; b = 255; }
-                else if (norm < 0.375) { r = 0; g = 220; b = 255; }
-                else if (norm < 0.625) { r = 0; g = 230; b = 100; }
-                else if (norm < 0.750) { r = 240; g = 230; b = 0; }
-                else if (norm < 0.875) { r = 255; g = 110; b = 0; }
-                else { r = 255; g = 0; b = 0; }
-            }
-            else if (mode === 'colormap_seven2') {
-                if (norm < 0.125) { r = 100; g = 0; b = 200; }
-                else if (norm < 0.250) { r = 0; g = 100; b = 255; }
-                else if (norm < 0.375) { r = 0; g = 220; b = 255; }
-                else if (norm < 0.625) { r = 127; g = 127; b = 127; }
-                else if (norm < 0.750) { r = 240; g = 230; b = 0; }
-                else if (norm < 0.875) { r = 255; g = 110; b = 0; }
-                else { r = 255; g = 0; b = 0; }
-            }
-            else if (mode === 'colormap_eight') {
+            if (mode === 'colormap_velocity') {
                 if (norm < 0.125) { r = 15; g = 15; b = 90; }
                 else if (norm < 0.250) { r = 0; g = 0; b = 230; }
                 else if (norm < 0.375) { r = 0; g = 160; b = 255; }
@@ -887,6 +831,24 @@
                 else if (norm < 0.750) { r = 255; g = 100; b = 0; }
                 else if (norm < 0.875) { r = 255; g = 0; b = 0; }
                 else { r = 255; g = 210; b = 210; }
+            }
+            else if (mode === 'colormap_pressure') {
+                if (norm < 0.125) { r = 100; g = 0; b = 200; }
+                else if (norm < 0.250) { r = 0; g = 100; b = 255; }
+                else if (norm < 0.375) { r = 0; g = 220; b = 255; }
+                else if (norm < 0.625) { r = 0; g = 230; b = 100; }
+                else if (norm < 0.750) { r = 240; g = 230; b = 0; }
+                else if (norm < 0.875) { r = 255; g = 110; b = 0; }
+                else { r = 255; g = 0; b = 0; }
+            }
+            else if (mode === 'colormap_vorticity') {
+                if (norm < 0.125) { r = 100; g = 0; b = 200; }
+                else if (norm < 0.250) { r = 0; g = 100; b = 255; }
+                else if (norm < 0.400) { r = 0; g = 220; b = 255; }
+                else if (norm < 0.600) { r = 127; g = 127; b = 127; }
+                else if (norm < 0.750) { r = 240; g = 230; b = 0; }
+                else if (norm < 0.875) { r = 255; g = 110; b = 0; }
+                else { r = 255; g = 0; b = 0; }
             }
             return `rgba(${r}, ${g}, ${b}, 0.82)`;
         }
@@ -1003,11 +965,11 @@
                         if (viewMode === 'velocity' && uFlow && vFlow) {
                             const u = 0.25 * (uFlow[idx00] + uFlow[idx10] + uFlow[idx11] + uFlow[idx01]);
                             const v = 0.25 * (vFlow[idx00] + vFlow[idx10] + vFlow[idx11] + vFlow[idx01]);
-                            color = getDiscreteColor(Math.hypot(u, v), 0.0, U_inf * 1.6, 'colormap_eight');
+                            color = getDiscreteColor(Math.hypot(u, v), 0.0, U_inf * 1.6, 'colormap_velocity');
 
                         } else if (viewMode === 'pressure' && pFlow) {
                             const p = 0.25 * (pFlow[idx00] + pFlow[idx10] + pFlow[idx11] + pFlow[idx01]);
-                            color = getDiscreteColor(p, -1.0, 0.5, 'colormap_seven');
+                            color = getDiscreteColor(p, -1.0, 0.5, 'colormap_pressure');
 
                         } else if (viewMode === 'vorticity' && uFlow && vFlow) {
                             function clamp(v, vmin, vmax) { return Math.max(vmin, Math.min(vmax, v)); }
@@ -1040,7 +1002,7 @@
                             }
 
                             const vort = 0.25 * (getVorticity(i, j) + getVorticity(i + 1, j) + getVorticity(i + 1, j + 1) + getVorticity(i, j + 1));
-                            color = getDiscreteColor(vort, -50.0, 50.0, 'colormap_seven2');
+                            color = getDiscreteColor(vort, -50.0, 50.0, 'colormap_vorticity');
                         }
 
                         ctx.fillStyle = color;
@@ -1105,6 +1067,7 @@
 
             ctx.fillStyle = "#ffffff";
             ctx.fillText(`${airfoilName}`, 25, 35);
+            ctx.fillText(`Grid: ${imax}*${jmax}`, 135, 35);
 
             ctx.fillStyle = "#ffffff";
             const currentAoaDeg = (Alpha_AoA * 180.0 / Math.PI).toFixed(1);
@@ -1131,47 +1094,43 @@
         }
 
         function updateAndRender() {
+            updateCfdParamsFromUi();
             generateInitialAlgebraicGrid();
             smoothGridElliptic();
             initCfdBuffers();
             renderGrid();
         }
 
-        function setupLinkedInputs(rangeEl, numEl, isAoa = false) {
-            rangeEl.addEventListener('input', () => {
-                numEl.value = rangeEl.value;
-                if (isAoa) {
-                    updateCfdParamsFromUi();
-                    renderGrid();
-                } else {
-                    updateAndRender();
-                }
-            });
-            numEl.addEventListener('input', () => {
-                rangeEl.value = numEl.value;
-                if (isAoa) {
-                    updateCfdParamsFromUi();
-                    renderGrid();
-                } else {
-                    updateAndRender();
-                }
-            });
-        }
-
         viewModeSelect.addEventListener('change', renderGrid);
 
+        // Reが変更された際、パラメータだけではなくjmaxも変わるため再初期化とグリッド再生成を行う
         reInput.addEventListener('change', () => {
+            clampInputValue(reInput);
+            updateAndRender();
+        });
+        reInput.addEventListener('input', () => {
+            const validRe = parseInt(reInput.value);
+            if (isNaN(validRe) || validRe < 1000 || validRe > 10000000) return;
+            updateAndRender();
+        });
+
+        aoaNum.addEventListener('input', () => {
+            const deg = parseFloat(aoaNum.value);
+            if (isNaN(deg) || deg < -180 || deg > 180) return;
             updateCfdParamsFromUi();
-            generateInitialAlgebraicGrid();
-            smoothGridElliptic();
+            renderGrid();
+        });
+        aoaNum.addEventListener('change', () => {
+            let deg = parseFloat(aoaNum.value);
+            if (isNaN(deg)) deg = 0.0;
+            aoaNum.value = Math.max(-180, Math.min(180, deg));
+            updateCfdParamsFromUi();
             renderGrid();
         });
 
-        // フォーム群のイベントリスナー（入力途中のバリデーション条件を厳格化）
-        [imaxInput, jmaxInput, mInput, pInput, xxInput].forEach(input => {
-            // 入力途中(input)の処理
+        // フォーム群のイベントリスナー
+        [mInput, pInput, xxInput].forEach(input => {
             input.addEventListener('input', () => {
-                // 【重要】ここで厳格なチェックを適用し、範囲外（1桁の途中状態など）なら何もしない
                 const validVal = getStrictValidatedValue(input);
                 if (validVal === null) return;
 
@@ -1180,12 +1139,9 @@
                 renderGrid();
             });
 
-            // 入力完了時(change: フォーカスアウトやEnter時)の処理
             input.addEventListener('change', () => {
-                clampInputValue(input); // ここで最小値・最大値に安全に強制補正
+                clampInputValue(input);
                 updateAndRender();
-                smoothGridElliptic();
-                renderGrid();
             });
         });
 
@@ -1237,10 +1193,8 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
 
-        updateCfdParamsFromUi();
-        generateInitialAlgebraicGrid();
-        smoothGridElliptic();
-        renderGrid();
+        // 初期実行
+        updateAndRender();
     </script>
 </body>
 </html>
