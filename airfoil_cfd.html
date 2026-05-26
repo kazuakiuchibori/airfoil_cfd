@@ -179,12 +179,12 @@
 
             <div class="control-group grid-group">
                 <div class="input-item">
-                    <label for="imaxInput">IMAX (半径方向数: 40~200):</label>
-                    <input type="number" id="imaxInput" min="40" max="200" value="60">
+                    <label for="imaxInput">IMAX (半径方向数: 20~200):</label>
+                    <input type="number" id="imaxInput" min="20" max="200" value="60">
                 </div>
                 <div class="input-item">
-                    <label for="jmaxInput">JMAX (周方向数: 60~300):</label>
-                    <input type="number" id="jmaxInput" min="60" max="300" value="120">
+                    <label for="jmaxInput">JMAX (周方向数: 40~400):</label>
+                    <input type="number" id="jmaxInput" min="40" max="400" value="120">
                 </div>
             </div>
 
@@ -270,7 +270,7 @@
         // CFD設定パラメータ
         let isCfdRunning = false;
         let dt = 0.0001;
-        let targetCFL = 0.15; // 固定CFL（可変dt制御）
+        let targetCFL = 0.5; // 固定CFL（可変dt制御）
         let Re = 100000;
         const U_inf = 1.0;
         let Alpha_AoA = 8.0 * Math.PI / 180.0;
@@ -301,8 +301,8 @@
             Alpha_AoA = deg * Math.PI / 180.0;
 
             const logRe = Math.log10(Re);
-            currentAStrength = 0.10 + 0.05 * logRe;
-            currentBDecay = 0.30 - 0.03 * logRe;
+            currentAStrength = 0.2 + 0.02 * logRe;
+            currentBDecay = 0.2 - 0.02 * logRe;
         }
 
         const getIdx = (i, j) => {
@@ -421,6 +421,7 @@
             if (!gridX || !gridY) return;
             const w = 1.5;
             const tolerance = 1e-3;
+            const wakeStrength = 0.01;
 
             for (let iter = 0; iter < 1000; iter++) {
                 let maxChange = 0.0;
@@ -445,8 +446,9 @@
                         const x_xi_eta = 0.25 * (gridX[idx_ipjp] - gridX[idx_ipjm] - gridX[idx_imjp] + gridX[idx_imjm]);
                         const y_xi_eta = 0.25 * (gridY[idx_ipjp] - gridY[idx_ipjm] - gridY[idx_imjp] + gridY[idx_imjm]);
 
+                        const theta = 2.0 * Math.PI * j / (jmax - 1);
                         const P = -currentAStrength * Math.exp(-currentBDecay * i);
-                        const Q = 0.0;
+                        const Q = wakeStrength * Math.sin(theta - Math.PI);
 
                         const denominator = 2.0 * (alpha + gamma);
                         if (denominator === 0) continue;
@@ -614,17 +616,9 @@
 
         function stepFlowSolver() {
             updateCfdParamsFromUi();
-            computeAdaptiveDt();
 
-            cfdStepCount++;
-            cfdTotalTime += dt;
-
-            const size = imax * jmax;
             const u_inf_x = U_inf * Math.cos(Alpha_AoA);
             const u_inf_y = U_inf * Math.sin(Alpha_AoA);
-
-            let localMaxCfl = 0.0;
-            let localMaxDiff = 0.0;
 
             for (let j = 0; j < jmax; j++) {
                 uFlow[getIdx(0, j)] = 0.0;
@@ -635,22 +629,36 @@
                 vFlow[getIdx(imax - 1, j)] = u_inf_y;
             }
 
+            let localMaxCfl = 0.0;
+            let localMaxDiff = 0.0;
             for (let i = 1; i < imax - 1; i++) {
                 for (let j = 0; j < jmax - 1; j++) {
                     const idx = getIdx(i, j);
                     const stab = computeStabilityParameters(idx);
                     if (stab.cfl > localMaxCfl) localMaxCfl = stab.cfl;
                     if (stab.diff > localMaxDiff) localMaxDiff = stab.diff;
+                }
+            }
+            maxCflGlobal = localMaxCfl;
+            maxDiffGlobal = localMaxDiff;
 
-                    const U = metrics.xi_x[idx] * uFlow[idx] + metrics.xi_y[idx] * vFlow[idx];
-                    const V = metrics.eta_x[idx] * uFlow[idx] + metrics.eta_y[idx] * vFlow[idx];
+            computeAdaptiveDt();
 
+            cfdStepCount++;
+            cfdTotalTime += dt;
+
+            for (let i = 1; i < imax - 1; i++) {
+                for (let j = 0; j < jmax - 1; j++) {
+                    const idx = getIdx(i, j);
                     const ip = getIdx(i + 1, j), im = getIdx(i - 1, j);
                     const jp = getIdx(i, j + 1), jm = getIdx(i, j - 1);
                     const ipjp = getIdx(i + 1, j + 1), ipjm = getIdx(i + 1, j - 1);
                     const imjp = getIdx(i - 1, j + 1), imjm = getIdx(i - 1, j - 1);
                     const ipp = getIdx(i + 2, j), imm = getIdx(i - 2, j);
                     const jpp = getIdx(i, j + 2), jmm = getIdx(i, j - 2);
+
+                    const U = metrics.xi_x[idx] * uFlow[idx] + metrics.xi_y[idx] * vFlow[idx];
+                    const V = metrics.eta_x[idx] * uFlow[idx] + metrics.eta_y[idx] * vFlow[idx];
 
                     let u_xi, v_xi, u_eta, v_eta;
 
@@ -689,14 +697,8 @@
                         v_eta = (-vFlow[jpp] + 6.0 * vFlow[jp] - 3.0 * vFlow[idx] - 2.0 * vFlow[jm]) / 6.0;
                     }
 
-                    convU_n[idx] = U * u_xi + V * u_eta;
-                    convV_n[idx] = U * v_xi + V * v_eta;
-
-                    const ab_u = convU_n[idx];
-                    const ab_v = convV_n[idx];
-
-                    //const ab_u = isFirstStep ? convU_n[idx] : 1.5 * convU_n[idx] - 0.5 * convU_old[idx];
-                    //const ab_v = isFirstStep ? convV_n[idx] : 1.5 * convV_n[idx] - 0.5 * convV_old[idx];
+                    const ab_u = U * u_xi + V * u_eta;
+                    const ab_v = U * v_xi + V * v_eta;
 
                     const J2 = metrics.J[idx] ** 2;
                     const inv_J2Re = 1.0 / (J2 * Re);
@@ -716,29 +718,26 @@
                         - 2.0 * metrics.beta[idx] * v_xi_eta_n
                     ) * inv_J2Re;
 
-                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + 0.5 * lap_u_n);
-                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + 0.5 * lap_v_n);
+                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + lap_u_n);
+                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + lap_v_n);
                 }
             }
 
-            maxCflGlobal = localMaxCfl;
-            maxDiffGlobal = localMaxDiff;
+            for (let j = 0; j < jmax; j++) {
+                rhsU[getIdx(0, j)] = 0.0;
+                rhsV[getIdx(0, j)] = 0.0;
+            }
+            for (let j = 0; j < jmax; j++) {
+                rhsU[getIdx(imax - 1, j)] = u_inf_x;
+                rhsV[getIdx(imax - 1, j)] = u_inf_y;
+            }
 
             uFlowTmp.set(rhsU);
             vFlowTmp.set(rhsV);
 
-            for (let j = 0; j < jmax; j++) {
-                uFlowTmp[getIdx(0, j)] = 0.0;
-                vFlowTmp[getIdx(0, j)] = 0.0;
-            }
-            for (let j = 0; j < jmax; j++) {
-                uFlowTmp[getIdx(imax - 1, j)] = u_inf_x;
-                vFlowTmp[getIdx(imax - 1, j)] = u_inf_y;
-            }
-
             const omega_u = 1.0;
 
-            for (let iter = 0; iter < 5; iter++) {
+            for (let iter = 0; iter < 10; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
@@ -751,9 +750,9 @@
                         const v_xi_eta = 0.25 * (vFlowTmp[ipjp] - vFlowTmp[ipjm] - vFlowTmp[imjp] + vFlowTmp[imjm]);
 
                         const J2 = metrics.J[idx] ** 2;
-                        const ax = 0.5 * dt * metrics.alpha[idx] / (J2 * Re);
-                        const ay = 0.5 * dt * metrics.gamma[idx] / (J2 * Re);
-                        const abeta = 0.5 * dt * metrics.beta[idx] / (J2 * Re);
+                        const ax = dt * metrics.alpha[idx] / (J2 * Re);
+                        const ay = dt * metrics.gamma[idx] / (J2 * Re);
+                        const abeta = dt * metrics.beta[idx] / (J2 * Re);
 
                         const denom = 1.0 + 2.0 * ax + 2.0 * ay;
 
