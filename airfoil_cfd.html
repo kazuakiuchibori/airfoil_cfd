@@ -14,7 +14,7 @@
         }
 
         .container {
-            max-width: 1450px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -50,17 +50,17 @@
         }
 
         .highlight-group {
-            border-left: 3px solid #e74c3c;
+            border-left: 3px solid navy;
             padding-left: 10px;
         }
 
         .cfd-group {
-            border-left: 3px solid #f39c12;
+            border-left: 3px solid grey;
             padding-left: 10px;
         }
 
         .diag-group {
-            border-left: 3px solid #2ecc71;
+            border-left: 3px solid brown;
             padding-left: 10px;
         }
 
@@ -141,51 +141,51 @@
 <body>
 
     <div class="container">
-        <h1>Airfoil Direct Simulator</h1>
-        <p>Navier-Stokes方程式を高精度な有限差分法によりリアルタイムで非定常計算します。</p>
+        <h1>NACA Airfoil CFD (2D)</h1>
+        <p>The unsteady flow around a NACA 4-digit airfoil is simulated, solving the Navier-Stokes equations via the Finite Difference Method (FDM).</p>
 
         <div class="control-panel">
             <div class="control-group highlight-group">
                 <div class="input-item">
-                    <label for="mInput">M (最大キャンバー %):</label>
+                    <label for="mInput">Max camber (1~9):</label>
                     <input type="number" id="mInput" min="0" max="9" step="1" value="4">
                 </div>
                 <div class="input-item">
-                    <label for="pInput">P (キャンバー位置 0.1倍):</label>
+                    <label for="pInput">Camber position (1~9):</label>
                     <input type="number" id="pInput" min="0" max="9" step="1" value="4">
                 </div>
                 <div class="input-item">
-                    <label for="xxInput">XX (最大肉厚 %):</label>
+                    <label for="xxInput">Max thickness (1~99):</label>
                     <input type="number" id="xxInput" min="1" max="99" step="1" value="12">
                 </div>
             </div>
 
             <div class="control-group cfd-group">
                 <div class="input-item">
-                    <label for="reInput">Re (レイノルズ数):</label>
+                    <label for="reInput">Reynolds number (1000~10000000):</label>
                     <input type="number" id="reInput" min="1000" max="10000000" step="1000" value="10000">
                 </div>
                 <div class="input-item">
-                    <label for="aoaRange">Alpha (迎角):</label>
+                    <label for="aoaRange">Angle of attack degrees (-180~180):</label>
                     <input type="number" id="aoaNum" min="-180" max="180" step="0.5" value="12.0">
                 </div>
             </div>
 
             <div class="control-group diag-group">
                 <div class="input-item">
-                    <label>CFDシミュレーション:</label>
+                    <label>Simulation:</label>
                     <div class="btn-container">
                         <button id="toggleCfdBtn" class="btn-cfd">Start</button>
                         <button id="resetCfdBtn" style="background:#7f8c8d;">Refresh</button>
                     </div>
                 </div>
                 <div class="input-item">
-                    <label for="viewModeSelect">表示モード:</label>
+                    <label for="viewModeSelect">Visualization:</label>
                     <select id="viewModeSelect">
-                        <option value="meshOnly">計算格子 (Grid)</option>
-                        <option value="velocity" selected>流速絶対値 (Velocity)</option>
-                        <option value="pressure">圧力 (Pressure)</option>
-                        <option value="vorticity">渦度 (Vorticity)</option>
+                        <option value="meshOnly">Computational grid</option>
+                        <option value="velocity" selected>Velocity magnitude</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="vorticity">Vorticity</option>
                     </select>
                 </div>
             </div>
@@ -219,7 +219,7 @@
         let startY = 0;
 
         // 格子データ（imaxは固定、jmaxはReから自動決定）
-        let imax = 64, jmax = 128;
+        let imax = 64, jmax = 120;
         let gridX = null, gridY = null;
 
         // 楕円緩和用の自動決定パラメータの内部保持
@@ -268,7 +268,7 @@
 
             // Reの変更に合わせてjmaxを動的に自動決定 (四捨五入して整数化)
             const logRe = Math.log10(Re);
-            jmax = Math.round(logRe * 32);
+            jmax = Math.round(logRe * 40);
 
             const deg = parseFloat(aoaNum.value) || 0.0;
             Alpha_AoA = deg * Math.PI / 180.0;
@@ -343,11 +343,14 @@
             gridX = new Float64Array(imax * jmax);
             gridY = new Float64Array(imax * jmax);
 
-            const rRatio = 10.0;
+            const rRatio = 10.0; // 計算領域半径（対翼弦長）
             const max_r = rRatio * 1.0;
 
             for (let j = 0; j < jmax; j++) {
-                const theta = 2.0 * Math.PI * j / (jmax - 1);
+                let s = j / (jmax - 1);
+                const amp = 0.06; // 後縁集中強度
+                s = s - amp * Math.sin(2.0 * Math.PI * s);
+                const theta = 2.0 * Math.PI * s;
                 let x_norm = 0.5 * (1.0 + Math.cos(theta));
                 let is_upper = (theta <= Math.PI);
                 const geo = calculateNacaGeometry(x_norm, m, p, xx);
@@ -387,7 +390,7 @@
             if (!gridX || !gridY) return;
             const w = 1.5;
             const tolerance = 1e-3;
-            const wakeStrength = 0.01;
+            const wakeStrength = 0.015; // 後流集中強度
 
             for (let iter = 0; iter < 1000; iter++) {
                 let maxChange = 0.0;
@@ -629,7 +632,6 @@
                             u_xi = (uFlow[ip] - uFlow[im]) * 0.5;
                             v_xi = (vFlow[ip] - vFlow[im]) * 0.5;
                         } else {
-                            const ipp = getIdx(i + 2, j);
                             u_xi = (-uFlow[ipp] + 4.0 * uFlow[ip] - 3.0 * uFlow[idx]) * 0.5;
                             v_xi = (-vFlow[ipp] + 4.0 * vFlow[ip] - 3.0 * vFlow[idx]) * 0.5;
                         }
@@ -643,18 +645,26 @@
                         }
                     } else {
                         if (U > 0.0) {
+                            //u_xi = (3.0 * uFlow[idx] - 4.0 * uFlow[im] + uFlow[imm]) * 0.5;
+                            //v_xi = (3.0 * vFlow[idx] - 4.0 * vFlow[im] + vFlow[imm]) * 0.5;
                             u_xi = (2.0 * uFlow[ip] + 3.0 * uFlow[idx] - 6.0 * uFlow[im] + uFlow[imm]) / 6.0;
                             v_xi = (2.0 * vFlow[ip] + 3.0 * vFlow[idx] - 6.0 * vFlow[im] + vFlow[imm]) / 6.0;
                         } else {
+                            //u_xi = (-uFlow[ipp] + 4.0 * uFlow[ip] - 3.0 * uFlow[idx]) * 0.5;
+                            //v_xi = (-vFlow[ipp] + 4.0 * vFlow[ip] - 3.0 * vFlow[idx]) * 0.5;
                             u_xi = (-uFlow[ipp] + 6.0 * uFlow[ip] - 3.0 * uFlow[idx] - 2.0 * uFlow[im]) / 6.0;
                             v_xi = (-vFlow[ipp] + 6.0 * vFlow[ip] - 3.0 * vFlow[idx] - 2.0 * vFlow[im]) / 6.0;
                         }
                     }
 
                     if (V > 0.0) {
+                        //u_eta = (3.0 * uFlow[idx] - 4.0 * uFlow[jm] + uFlow[jmm]) * 0.5;
+                        //v_eta = (3.0 * vFlow[idx] - 4.0 * vFlow[jm] + vFlow[jmm]) * 0.5;
                         u_eta = (2.0 * uFlow[jp] + 3.0 * uFlow[idx] - 6.0 * uFlow[jm] + uFlow[jmm]) / 6.0;
                         v_eta = (2.0 * vFlow[jp] + 3.0 * vFlow[idx] - 6.0 * vFlow[jm] + vFlow[jmm]) / 6.0;
                     } else {
+                        //u_eta = (-uFlow[jpp] + 4.0 * uFlow[jp] - 3.0 * uFlow[idx]) * 0.5;
+                        //v_eta = (-vFlow[jpp] + 4.0 * vFlow[jp] - 3.0 * vFlow[idx]) * 0.5;
                         u_eta = (-uFlow[jpp] + 6.0 * uFlow[jp] - 3.0 * uFlow[idx] - 2.0 * uFlow[jm]) / 6.0;
                         v_eta = (-vFlow[jpp] + 6.0 * vFlow[jp] - 3.0 * vFlow[idx] - 2.0 * vFlow[jm]) / 6.0;
                     }
@@ -680,8 +690,8 @@
                         - 2.0 * metrics.beta[idx] * v_xi_eta_n
                     ) * inv_J2Re;
 
-                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + 0.5 * lap_u_n);
-                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + 0.5 * lap_v_n);
+                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + lap_u_n);
+                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + lap_v_n);
                 }
             }
 
@@ -699,7 +709,7 @@
 
             const omega_u = 1.0;
 
-            for (let iter = 0; iter < 5; iter++) {
+            for (let iter = 0; iter < 10; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
@@ -712,9 +722,9 @@
                         const v_xi_eta = 0.25 * (vFlowTmp[ipjp] - vFlowTmp[ipjm] - vFlowTmp[imjp] + vFlowTmp[imjm]);
 
                         const J2 = metrics.J[idx] ** 2;
-                        const ax = 0.5 * dt * metrics.alpha[idx] / (J2 * Re);
-                        const ay = 0.5 * dt * metrics.gamma[idx] / (J2 * Re);
-                        const abeta = 0.5 * dt * metrics.beta[idx] / (J2 * Re);
+                        const ax = dt * metrics.alpha[idx] / (J2 * Re);
+                        const ay = dt * metrics.gamma[idx] / (J2 * Re);
+                        const abeta = dt * metrics.beta[idx] / (J2 * Re);
 
                         const denom = 1.0 + 2.0 * ax + 2.0 * ay;
 
@@ -739,25 +749,18 @@
             for (let i = 1; i < imax - 1; i++) {
                 for (let j = 0; j < jmax - 1; j++) {
                     const idx = getIdx(i, j);
+                    const ip = getIdx(i + 1, j), im = getIdx(i - 1, j);
+                    const jp = getIdx(i, j + 1), jm = getIdx(i, j - 1);
+                    const ipp = getIdx(i + 2, j), imm = getIdx(i - 2, j);
+                    const jpp = getIdx(i, j + 2), jmm = getIdx(i, j - 2);
                     const J = metrics.J[idx];
 
                     let dJU_dxi;
                     if (i >= 2 && i <= imax - 3) {
-                        const ipp = getIdx(i + 2, j);
-                        const ip = getIdx(i + 1, j);
-                        const im = getIdx(i - 1, j);
-                        const imm = getIdx(i - 2, j);
                         dJU_dxi = (- JU[ipp] + 8.0 * JU[ip] - 8.0 * JU[im] + JU[imm]) / 12.0;
                     } else {
-                        const ip = getIdx(i + 1, j);
-                        const im = getIdx(i - 1, j);
                         dJU_dxi = (JU[ip] - JU[im]) / 2.0;
                     }
-
-                    const jpp = getIdx(i, j + 2);
-                    const jp = getIdx(i, j + 1);
-                    const jm = getIdx(i, j - 1);
-                    const jmm = getIdx(i, j - 2);
 
                     const dJV_deta = (- JV[jpp] + 8.0 * JV[jp] - 8.0 * JV[jm] + JV[jmm]) / 12.0;
 
@@ -841,7 +844,7 @@
                 else if (norm < 0.5455) { r = 0; g = 200; b = 150; } // 6. 青緑     [-0.75 ～ -0.50]
                 else if (norm < 0.6364) { r = 0; g = 160; b = 70; } // 7. 深い緑   [-0.50 ～ -0.25]
                 else if (norm < 0.7273) { r = 130; g = 200; b = 60; } // 8. 薄い緑   [-0.25 ～  0.00]
-                else if (norm < 0.8182) { r = 240; g = 240; b = 30; } // 9. 黄色     [ 0.00 ～ +0.25]
+                else if (norm < 0.8182) { r = 200; g = 200; b = 30; } // 9. 黄色     [ 0.00 ～ +0.25]
                 else if (norm < 0.9091) { r = 240; g = 120; b = 20; } // 10. オレンジ[+0.25 ～ +0.50]
                 else { r = 240; g = 10; b = 10; } // 11. 濃い赤  [+0.50 ～ +0.75]
             }
