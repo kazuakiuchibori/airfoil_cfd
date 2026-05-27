@@ -700,8 +700,8 @@
                         - 2.0 * metrics.beta[idx] * v_xi_eta_n
                     ) * inv_J2Re;
 
-                    rhsU[idx] = uFlow[idx] + dt * (-ab_u + lap_u_n);
-                    rhsV[idx] = vFlow[idx] + dt * (-ab_v + lap_v_n);
+                    rhsU[idx] = uFlow[idx] + dt * -ab_u;
+                    rhsV[idx] = vFlow[idx] + dt * -ab_v;
                 }
             }
 
