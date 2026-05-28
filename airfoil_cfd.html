@@ -292,7 +292,7 @@
 
         function calculateNacaGeometry(x_norm, m, p, xx) {
             const t = xx / 100.0;
-            const a0 = 0.2969, a1 = -0.1260, a2 = -0.3516, a3 = 0.2843, a4 = -0.1030;
+            const a0 = 0.2969, a1 = -0.1260, a2 = -0.3516, a3 = 0.2843, a4 = -0.1015;
             const yt = 5.0 * t * (a0 * Math.sqrt(x_norm) + a1 * x_norm + a2 * x_norm ** 2 + a3 * x_norm ** 3 + a4 * x_norm ** 4);
             let yc = 0.0, dyc_dx = 0.0;
             if (m > 0 && p > 0) {
@@ -354,7 +354,7 @@
 
             for (let j = 0; j < jmax; j++) {
                 let s = j / (jmax - 1);
-                const amp = 0.05; // 後縁集中強度
+                const amp = 0.00; // 後縁集中強度
                 s = s - amp * Math.sin(2.0 * Math.PI * s);
                 const theta = 2.0 * Math.PI * s;
                 let x_norm = 0.5 * (1.0 + Math.cos(theta));
@@ -396,7 +396,7 @@
             if (!gridX || !gridY) return;
             const w = 1.5;
             const tolerance = 1e-3;
-            const wakeStrength = 0.01; // 後流集中強度
+            const wakeStrength = 0.00; // 後流集中強度
 
             for (let iter = 0; iter < 1000; iter++) {
                 let maxChange = 0.0;
