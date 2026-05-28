@@ -409,7 +409,7 @@
 
             for (let j = 0; j < jmax; j++) {
                 let s = j / (jmax - 1);
-                const amp = 0.04; // 後縁集中強度
+                const amp = 0.02; // 後縁集中強度
                 s = s - amp * Math.sin(2.0 * Math.PI * s);
                 const theta = 2.0 * Math.PI * s;
                 let x_norm = 0.5 * (1.0 + Math.cos(theta));
@@ -739,7 +739,7 @@
 
             const omega_u = 1.0;
 
-            for (let iter = 0; iter < 5; iter++) {
+            for (let iter = 0; iter < 10; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
