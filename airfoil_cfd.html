@@ -354,7 +354,7 @@
 
             for (let j = 0; j < jmax; j++) {
                 let s = j / (jmax - 1);
-                const amp = 0.06; // 後縁集中強度
+                const amp = 0.05; // 後縁集中強度
                 s = s - amp * Math.sin(2.0 * Math.PI * s);
                 const theta = 2.0 * Math.PI * s;
                 let x_norm = 0.5 * (1.0 + Math.cos(theta));
@@ -396,7 +396,7 @@
             if (!gridX || !gridY) return;
             const w = 1.5;
             const tolerance = 1e-3;
-            const wakeStrength = 0.015; // 後流集中強度
+            const wakeStrength = 0.01; // 後流集中強度
 
             for (let iter = 0; iter < 1000; iter++) {
                 let maxChange = 0.0;
