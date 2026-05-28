@@ -912,20 +912,24 @@
                 const idx0_j1 = getIdx(0, j + 1);
                 const idx1_j = getIdx(1, j);
                 const idx1_j1 = getIdx(1, j + 1);
-                const idx2_j = getIdx(2, j);
-                const idx2_j1 = getIdx(2, j + 1);
 
+                // --- 表面セグメントの幾何学データの算出 ---
                 const dx = gridX[idx0_j1] - gridX[idx0_j];
                 const dy = gridY[idx0_j1] - gridY[idx0_j];
 
+                // 流体側を向く法線ベクトル（面積分用）
                 const nx_ds = dy;
                 const ny_ds = -dx;
+                // セグメントの厳密な長さ
+                const ds_geom = Math.sqrt(nx_ds * nx_ds + ny_ds * ny_ds);
+
+                if (ds_geom < 1e-12) continue;
 
                 const p_face = 0.5 * (pFlow[idx1_j] + pFlow[idx1_j1]);
-
                 Fx_p += -p_face * nx_ds;
                 Fy_p += -p_face * ny_ds;
 
+                // 壁から第1層目（idx1）への格子線ベクトルの長さ
                 const delta_x_j = gridX[idx1_j] - gridX[idx0_j];
                 const delta_y_j = gridY[idx1_j] - gridY[idx0_j];
                 const delta_x_j1 = gridX[idx1_j1] - gridX[idx0_j1];
@@ -936,32 +940,32 @@
 
                 if (ds_j < 1e-12 || ds_j1 < 1e-12) continue;
 
-                const du_dn_j = (4.0 * uFlow[idx1_j] - uFlow[idx2_j]) / (2.0 * ds_j);
-                const dv_dn_j = (4.0 * vFlow[idx1_j] - vFlow[idx2_j]) / (2.0 * ds_j);
-                const du_dn_j1 = (4.0 * uFlow[idx1_j1] - uFlow[idx2_j1]) / (2.0 * ds_j1);
-                const dv_dn_j1 = (4.0 * vFlow[idx1_j1] - vFlow[idx2_j1]) / (2.0 * ds_j1);
+                const du_dn_j = uFlow[idx1_j] / ds_j;
+                const dv_dn_j = vFlow[idx1_j] / ds_j;
+                const du_dn_j1 = uFlow[idx1_j1] / ds_j1;
+                const dv_dn_j1 = vFlow[idx1_j1] / ds_j1;
 
-                const delta_x = 0.5 * (delta_x_j + delta_x_j1);
-                const delta_y = 0.5 * (delta_y_j + delta_y_j1);
-                const ds_face = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
-
-                if (ds_face < 1e-12) continue;
-
-                const n_xi_x = delta_x / ds_face;
-                const n_xi_y = delta_y / ds_face;
-
+                // 面の中心での勾配
                 const du_dn = 0.5 * (du_dn_j + du_dn_j1);
                 const dv_dn = 0.5 * (dv_dn_j + dv_dn_j1);
 
-                const du_dx = n_xi_x * du_dn;
-                const du_dy = n_xi_y * du_dn;
-                const dv_dx = n_xi_x * dv_dn;
-                const dv_dy = n_xi_y * dv_dn;
+                // --- 3. テンソル射影（修正B：厳密な幾何学法線ベクトルの使用） ---
+                // 格子線の方向(n_xi_x等)ではなく、実際の翼表面に対する厳密な法線ベクトル(長さ1)を使用します。
+                const nx_norm = nx_ds / ds_geom;
+                const ny_norm = ny_ds / ds_geom;
 
+                // x, y方向の速度勾配テンソルへの分解
+                const du_dx = nx_norm * du_dn;
+                const du_dy = ny_norm * du_dn;
+                const dv_dx = nx_norm * dv_dn;
+                const dv_dy = ny_norm * dv_dn;
+
+                // ニュートン流体の粘性応力テンソル計算
                 const tau_xx = (2.0 / Re) * du_dx;
                 const tau_xy = (1.0 / Re) * (du_dy + dv_dx);
                 const tau_yy = (2.0 / Re) * dv_dy;
 
+                // 粘性力の積分（応力テンソルと面積分ベクトルの内積）
                 Fx_v += tau_xx * nx_ds + tau_xy * ny_ds;
                 Fy_v += tau_xy * nx_ds + tau_yy * ny_ds;
             }
