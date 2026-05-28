@@ -292,8 +292,46 @@
 
         function calculateNacaGeometry(x_norm, m, p, xx) {
             const t = xx / 100.0;
-            const a0 = 0.2969, a1 = -0.1260, a2 = -0.3516, a3 = 0.2843, a4 = -0.1015 -0.0015;
-            const yt = 5.0 * t * (a0 * Math.sqrt(x_norm) + a1 * x_norm + a2 * x_norm ** 2 + a3 * x_norm ** 3 + a4 * x_norm ** 4);
+
+            // --- 1. NACA厚み関数とその微分（傾き）を計算するヘルパー関数 ---
+            const a0 = 0.2969, a1 = -0.1260, a2 = -0.3516, a3 = 0.2843, a4 = -0.1015;
+
+            const calcThickness = (x) => {
+                // 半厚み yt
+                const yt = 5.0 * t * (a0 * Math.sqrt(x) + a1 * x + a2 * x ** 2 + a3 * x ** 3 + a4 * x ** 4);
+                // 傾き dy/dx
+                const dy = 5.0 * t * ((a0 / (2.0 * Math.sqrt(x))) + a1 + 2.0 * a2 * x + 3.0 * a3 * x ** 2 + 4.0 * a4 * x ** 3);
+                return { yt, dy };
+            };
+
+            // --- 2. 円弧が x=1.0 にぴったり収まる切り替え点 x_t を二分法で探索 ---
+            let x_L = 0.8; // 探索の下限
+            let x_R = 1.0; // 探索の上限
+            let x_t = 0.99;
+
+            // 30回のループで誤差 10^-9 以下の精度に収束します
+            for (let i = 0; i < 30; i++) {
+                x_t = (x_L + x_R) / 2.0;
+                const { yt, dy } = calcThickness(x_t);
+
+                // 評価関数: 円の右端座標 - 1.0
+                const circleRightEdge = x_t + yt * dy + yt * Math.sqrt(1.0 + dy * dy);
+                const val = circleRightEdge - 1.0;
+
+                if (val > 0) {
+                    x_R = x_t; // 円が1.0をはみ出す場合は、接点を左へ
+                } else {
+                    x_L = x_t; // 円が1.0に届かない場合は、接点を右へ
+                }
+            }
+
+            // --- 3. 確定した x_t から円弧のパラメータを最終計算 ---
+            const { yt: yt_t, dy: dy_t } = calcThickness(x_t);
+            const x_c = x_t + yt_t * dy_t;              // 円の中心 x座標
+            const r = yt_t * Math.sqrt(1.0 + dy_t * dy_t); // 円の半径
+
+
+            // --- 4. キャンバー（中心線）の計算 ---
             let yc = 0.0, dyc_dx = 0.0;
             if (m > 0 && p > 0) {
                 const mc = m / 100.0, pc = p / 10.0;
@@ -305,6 +343,23 @@
                     dyc_dx = ((2.0 * mc) / (1.0 - pc) ** 2) * (pc - x_norm);
                 }
             }
+
+            // --- 5. 最終的な厚み（yt）の出力 ---
+            let yt = 0.0;
+            if (x_norm <= x_t) {
+                // 翼の前半〜接点までは通常のNACA公式
+                yt = calcThickness(x_norm).yt;
+            } else {
+                // 接点以降は円弧で後縁を閉じる
+                const dx = x_norm - x_c;
+                if (dx >= r) {
+                    yt = 0.0; // x >= 1.0 では確実にゼロ
+                } else {
+                    // 円の方程式: y = sqrt(r^2 - (x - x_c)^2)
+                    yt = Math.sqrt(Math.max(0, r ** 2 - dx ** 2));
+                }
+            }
+
             return { yc, yt, theta_c: Math.atan(dyc_dx) };
         }
 
