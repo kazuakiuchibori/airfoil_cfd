@@ -1154,15 +1154,13 @@
         aoaNum.addEventListener('input', () => {
             const deg = parseFloat(aoaNum.value);
             if (isNaN(deg) || deg < -180 || deg > 180) return;
-            updateCfdParamsFromUi();
-            renderGrid();
+            updateAndRender();
         });
         aoaNum.addEventListener('change', () => {
             let deg = parseFloat(aoaNum.value);
             if (isNaN(deg)) deg = 0.0;
             aoaNum.value = Math.max(-180, Math.min(180, deg));
-            updateCfdParamsFromUi();
-            renderGrid();
+            updateAndRender();
         });
 
         // フォーム群のイベントリスナー
