@@ -228,15 +228,15 @@
         let startX = 0;
         let startY = 0;
 
-        // 格子データ（imaxは固定、jmaxはReから自動決定）
-        let imax = 64, jmax = 120;
+        // 格子データ（Reから自動決定）
+        let imax = 60, jmax = 120;
         let gridX = null, gridY = null;
 
-        // 楕円緩和用の自動決定パラメータの内部保持
+        // 格子用楕円方程式パラメータ（Reから自動決定）
         let currentAStrength = 0.40;
         let currentBDecay = 0.10;
 
-        // CFD流体場データ
+        // 流れ場
         let uFlow = null;
         let vFlow = null;
         let pFlow = null;
@@ -258,11 +258,6 @@
         let cfdStepCount = 0;
         let cfdTotalTime = 0.0;
 
-        // AB2用
-        let convU_old = null;
-        let convV_old = null;
-        let isFirstStep = true;
-
         let maxCflGlobal = 0.0;
         let maxDiffGlobal = 0.0;
 
@@ -276,9 +271,10 @@
             Re = Math.max(1000, Math.min(10000000, rawRe));
             reInput.value = Re;
 
-            // Reの変更に合わせてjmaxを動的に自動決定 (四捨五入して整数化)
+            // Reの変更に合わせて自動決定
             const logRe = Math.log10(Re);
-            jmax = Math.round(logRe * 40);
+            imax = Math.round(logRe * 12);
+            jmax = Math.round(logRe * 36);
 
             const deg = parseFloat(aoaNum.value) || 0.0;
             Alpha_AoA = deg * Math.PI / 180.0;
@@ -531,10 +527,6 @@
             vFlowTmp = new Float64Array(size);
             rhsU = new Float64Array(size);
             rhsV = new Float64Array(size);
-            convU_n = new Float64Array(size);
-            convV_n = new Float64Array(size);
-            convU_old = new Float64Array(size);
-            convV_old = new Float64Array(size);
             JU = new Float64Array(size);
             JV = new Float64Array(size);
             src = new Float64Array(size);
@@ -548,7 +540,6 @@
                 pFlow[i] = 0.0;
             }
 
-            isFirstStep = true;
             maxCflGlobal = 0.0;
             maxDiffGlobal = 0.0;
 
@@ -655,50 +646,24 @@
                         }
                     } else {
                         if (U > 0.0) {
-                            //u_xi = (3.0 * uFlow[idx] - 4.0 * uFlow[im] + uFlow[imm]) * 0.5;
-                            //v_xi = (3.0 * vFlow[idx] - 4.0 * vFlow[im] + vFlow[imm]) * 0.5;
-                            u_xi = (2.0 * uFlow[ip] + 3.0 * uFlow[idx] - 6.0 * uFlow[im] + uFlow[imm]) / 6.0;
-                            v_xi = (2.0 * vFlow[ip] + 3.0 * vFlow[idx] - 6.0 * vFlow[im] + vFlow[imm]) / 6.0;
+                            u_xi = (uFlow[ipp] - 2.0 * uFlow[ip] + 9.0 * uFlow[idx] - 10.0 * uFlow[im] + 2.0 * uFlow[imm]) / 6.0;
+                            v_xi = (vFlow[ipp] - 2.0 * vFlow[ip] + 9.0 * vFlow[idx] - 10.0 * vFlow[im] + 2.0 * vFlow[imm]) / 6.0;
                         } else {
-                            //u_xi = (-uFlow[ipp] + 4.0 * uFlow[ip] - 3.0 * uFlow[idx]) * 0.5;
-                            //v_xi = (-vFlow[ipp] + 4.0 * vFlow[ip] - 3.0 * vFlow[idx]) * 0.5;
-                            u_xi = (-uFlow[ipp] + 6.0 * uFlow[ip] - 3.0 * uFlow[idx] - 2.0 * uFlow[im]) / 6.0;
-                            v_xi = (-vFlow[ipp] + 6.0 * vFlow[ip] - 3.0 * vFlow[idx] - 2.0 * vFlow[im]) / 6.0;
+                            u_xi = (-2.0 * uFlow[ipp] + 10.0 * uFlow[ip] - 9.0 * uFlow[idx] + 2.0 * uFlow[im] - uFlow[imm]) / 6.0;
+                            v_xi = (-2.0 * vFlow[ipp] + 10.0 * vFlow[ip] - 9.0 * vFlow[idx] + 2.0 * vFlow[im] - vFlow[imm]) / 6.0;
                         }
                     }
 
                     if (V > 0.0) {
-                        //u_eta = (3.0 * uFlow[idx] - 4.0 * uFlow[jm] + uFlow[jmm]) * 0.5;
-                        //v_eta = (3.0 * vFlow[idx] - 4.0 * vFlow[jm] + vFlow[jmm]) * 0.5;
-                        u_eta = (2.0 * uFlow[jp] + 3.0 * uFlow[idx] - 6.0 * uFlow[jm] + uFlow[jmm]) / 6.0;
-                        v_eta = (2.0 * vFlow[jp] + 3.0 * vFlow[idx] - 6.0 * vFlow[jm] + vFlow[jmm]) / 6.0;
+                        u_eta = (uFlow[jpp] - 2.0 * uFlow[jp] + 9.0 * uFlow[idx] - 10.0 * uFlow[jm] + 2.0 * uFlow[jmm]) / 6.0;
+                        v_eta = (vFlow[jpp] - 2.0 * vFlow[jp] + 9.0 * vFlow[idx] - 10.0 * vFlow[jm] + 2.0 * vFlow[jmm]) / 6.0;
                     } else {
-                        //u_eta = (-uFlow[jpp] + 4.0 * uFlow[jp] - 3.0 * uFlow[idx]) * 0.5;
-                        //v_eta = (-vFlow[jpp] + 4.0 * vFlow[jp] - 3.0 * vFlow[idx]) * 0.5;
-                        u_eta = (-uFlow[jpp] + 6.0 * uFlow[jp] - 3.0 * uFlow[idx] - 2.0 * uFlow[jm]) / 6.0;
-                        v_eta = (-vFlow[jpp] + 6.0 * vFlow[jp] - 3.0 * vFlow[idx] - 2.0 * vFlow[jm]) / 6.0;
+                        u_eta = (-2.0 * uFlow[jpp] + 10.0 * uFlow[jp] - 9.0 * uFlow[idx] + 2.0 * uFlow[jm] - uFlow[jmm]) / 6.0;
+                        v_eta = (-2.0 * vFlow[jpp] + 10.0 * vFlow[jp] - 9.0 * vFlow[idx] + 2.0 * vFlow[jm] - vFlow[jmm]) / 6.0;
                     }
 
                     const ab_u = U * u_xi + V * u_eta;
                     const ab_v = U * v_xi + V * v_eta;
-
-                    const J2 = metrics.J[idx] ** 2;
-                    const inv_J2Re = 1.0 / (J2 * Re);
-
-                    const u_xi_eta_n = 0.25 * (uFlow[ipjp] - uFlow[ipjm] - uFlow[imjp] + uFlow[imjm]);
-                    const v_xi_eta_n = 0.25 * (vFlow[ipjp] - vFlow[ipjm] - vFlow[imjp] + vFlow[imjm]);
-
-                    const lap_u_n = (
-                        metrics.alpha[idx] * (uFlow[ip] + uFlow[im] - 2.0 * uFlow[idx])
-                        + metrics.gamma[idx] * (uFlow[jp] + uFlow[jm] - 2.0 * uFlow[idx])
-                        - 2.0 * metrics.beta[idx] * u_xi_eta_n
-                    ) * inv_J2Re;
-
-                    const lap_v_n = (
-                        metrics.alpha[idx] * (vFlow[ip] + vFlow[im] - 2.0 * vFlow[idx])
-                        + metrics.gamma[idx] * (vFlow[jp] + vFlow[jm] - 2.0 * vFlow[idx])
-                        - 2.0 * metrics.beta[idx] * v_xi_eta_n
-                    ) * inv_J2Re;
 
                     rhsU[idx] = uFlow[idx] + dt * -ab_u;
                     rhsV[idx] = vFlow[idx] + dt * -ab_v;
@@ -719,7 +684,7 @@
 
             const omega_u = 1.0;
 
-            for (let iter = 0; iter < 10; iter++) {
+            for (let iter = 0; iter < 5; iter++) {
                 for (let i = 1; i < imax - 1; i++) {
                     for (let j = 0; j < jmax - 1; j++) {
                         const idx = getIdx(i, j);
@@ -831,7 +796,7 @@
         function getDiscreteColor(value, minV, maxV, mode) {
             let norm = (value - minV) / (maxV - minV || 1.0);
             norm = Math.min(1.0, Math.max(0.0, norm));
-            const bands = 7*11*8;
+            const bands = 7 * 11 * 8;
             norm = Math.floor(norm * bands) / bands;
 
             let r = 0, g = 0, b = 0;
