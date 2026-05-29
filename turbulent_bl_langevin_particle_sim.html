@@ -185,6 +185,25 @@
             <div class="stat-card"><div class="stat-label">累計吸着(回収)数</div><div id="s-dead" class="stat-value">0</div></div>
             <div class="stat-card"><div class="stat-label">回収効率</div><div id="s-rate" class="stat-value">0%</div></div>
             <div class="stat-card"><div class="stat-label">経過時間</div><div id="s-time" class="stat-value">0.0 s</div></div>
+            <div class="stat-card">
+                <div class="stat-label">Cw/C∞</div>
+                <div id="out-cw" class="stat-value accent">1.00</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">km [m/s]</div>
+                <div id="out-km" class="stat-value accent">0</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Sh</div>
+                <div id="out-sh" class="stat-value accent">0</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">δc [m]</div>
+                <div id="out-dc" class="stat-value accent">0</div>
+            </div>
         </div>
 
         <div class="canvas-container">
@@ -222,8 +241,8 @@
                 </div>
                 <div class="control-row">
                     <label for="sl-inf">流入数 / フレーム</label>
-                    <input id="sl-inf" type="range" min="1" max="50" step="1" value="15">
-                    <span id="v-inf" class="v-val">15</span>
+                    <input id="sl-inf" type="range" min="15" max="300" step="1" value="50">
+                    <span id="v-inf" class="v-val">50</span>
                 </div>
                 <div class="btn-group">
                     <button id="btn-run">▶ 開始</button>
@@ -333,6 +352,20 @@
         }
 
         let parts = [], dead = [], totalDead = 0, totalSpawned = 0, simTime = 0;
+
+        const NY_CONC = 300;
+
+        let concBins = new Float64Array(NY_CONC);
+        let concAvgBins = new Float64Array(NY_CONC);
+
+        let concSamples = 0;
+
+        let wallConcRatio = 1.0;
+        let bulkConcValue = 1.0;
+        let kmValue = 0.0;
+        let shValue = 0.0;
+        let deltaC = 0.0;
+
         const HW = 120, HH = 60;
         let hmap = new Float32Array(HW * HH);
         let showMap = false, running = false, rafId = null;
@@ -340,6 +373,14 @@
 
         function resetAll() {
             parts = []; dead = []; totalDead = 0; totalSpawned = 0; simTime = 0;
+            concBins.fill(0);
+            concAvgBins.fill(0);
+            concSamples = 0;
+            wallConcRatio = 1.0;
+            bulkConcValue = 1.0;
+            kmValue = 0.0;
+            shValue = 0.0;
+            deltaC = 0.0;
             hmap = new Float32Array(HW * HH);
             updateDisplays();
             redraw();
@@ -476,6 +517,7 @@
             }
             parts = keep;
             for (let k = 0; k < hmap.length; k++) hmap[k] *= 0.998;
+            updateConcentrationStatistics();
             simTime += dt;
             if (dead.length > 2000) dead.splice(0, dead.length - 2000);
         }
@@ -501,6 +543,44 @@
                 const sy = toSY(y, delta);
                 i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
             }
+            ctx.stroke();
+        }
+
+        function drawConcentrationProfile(delta) {
+
+            if (concSamples < 50) return;
+
+            ctx.strokeStyle = '#ff5050';
+            ctx.lineWidth = 2;
+
+            const maxWidth = 120;
+
+            ctx.beginPath();
+
+            for (let j = 0; j < NY_CONC; j++) {
+
+                const y =
+                    delta *
+                    j /
+                    (NY_CONC - 1);
+
+                const C =
+                    concAvgBins[j] /
+                    Math.max(bulkConcValue, 1e-12);
+
+                const sx =
+                    MX +
+                    C * maxWidth;
+
+                const sy =
+                    toSY(y, delta);
+
+                if (j === 0)
+                    ctx.moveTo(sx, sy);
+                else
+                    ctx.lineTo(sx, sy);
+            }
+
             ctx.stroke();
         }
 
@@ -560,6 +640,7 @@
             ctx.fillText('流路中心 (δ = H/2)', MX + PW + 6, d99Y + 4);
 
             drawProf(ustar, delta);
+            drawConcentrationProfile(delta);
 
             if (!showMap) {
                 for (let i = 0; i < dead.length; i++) {
@@ -587,6 +668,123 @@
             }
         }
 
+        function updateConcentrationStatistics() {
+
+            const p = getP();
+
+            concBins.fill(0);
+
+            for (let i = 0; i < parts.length; i++) {
+
+                const y = parts[i].y;
+
+                const r = Math.max(
+                    0,
+                    Math.min(1, y / p.delta)
+                );
+
+                const j = Math.min(
+                    NY_CONC - 1,
+                    Math.floor(r * (NY_CONC - 1))
+                );
+
+                concBins[j]++;
+            }
+
+            for (let j = 0; j < NY_CONC; j++) {
+                concAvgBins[j] += concBins[j];
+            }
+
+            concSamples++;
+
+            if (concSamples < 50) return;
+
+            // ------------------------
+            // Bulk concentration
+            // ------------------------
+
+            let bulkSum = 0;
+            let bulkCount = 0;
+
+            for (let j = Math.floor(0.8 * NY_CONC); j < NY_CONC; j++) {
+                bulkSum += concAvgBins[j];
+                bulkCount++;
+            }
+
+            bulkConcValue =
+                bulkCount > 0 ?
+                    bulkSum / bulkCount : 1.0;
+
+            if (bulkConcValue < 1e-12)
+                bulkConcValue = 1e-12;
+
+            // ------------------------
+            // Wall concentration
+            // ------------------------
+
+            let wallSum = 0;
+
+            for (let j = 0; j < 3; j++) {
+                wallSum += concAvgBins[j];
+            }
+
+            const wallConc =
+                wallSum / 3.0;
+
+            wallConcRatio =
+                wallConc / bulkConcValue;
+
+            // ------------------------
+            // Flux
+            // ------------------------
+
+            const J =
+                totalDead /
+                Math.max(simTime * domLen, 1e-12);
+
+            // ------------------------
+            // Mass transfer coefficient
+            // ------------------------
+
+            const deltaCbulk =
+                bulkConcValue - wallConc;
+
+            if (deltaCbulk > 1e-12) {
+
+                kmValue =
+                    J /
+                    deltaCbulk;
+
+                shValue =
+                    kmValue *
+                    p.H /
+                    p.Dm;
+            }
+
+            // ------------------------
+            // Concentration boundary layer
+            // ------------------------
+
+            deltaC = p.delta;
+
+            for (let j = 0; j < NY_CONC; j++) {
+
+                const C =
+                    concAvgBins[j] /
+                    bulkConcValue;
+
+                if (C > 0.99) {
+
+                    deltaC =
+                        p.delta *
+                        j /
+                        (NY_CONC - 1);
+
+                    break;
+                }
+            }
+        }
+
         function updateDisplays() {
             const p = getP();
 
@@ -609,6 +807,18 @@
             document.getElementById('out-delta').textContent = p.delta.toFixed(3);
             document.getElementById('out-f').textContent = p.f.toFixed(4);
             document.getElementById('out-re').textContent = Math.round(p.Re).toLocaleString();
+
+            document.getElementById('out-cw').textContent =
+                wallConcRatio.toFixed(3);
+
+            document.getElementById('out-km').textContent =
+                kmValue.toExponential(2);
+
+            document.getElementById('out-sh').textContent =
+                shValue.toFixed(1);
+
+            document.getElementById('out-dc').textContent =
+                deltaC.toFixed(4);
         }
 
         let fc = 0;
