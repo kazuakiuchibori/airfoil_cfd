@@ -32,6 +32,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--color-background-primary);
             color: var(--color-text-primary);
+            text-align: center;
             margin: 0;
             padding: 12px;
         }
@@ -45,16 +46,16 @@
         }
 
         h1 {
-            font-size: 22px;
+            font-size: 18px;
             color: #222;
-            margin-bottom: 5px;
+            margin-bottom: 0px;
         }
 
         p {
             font-size: 13px;
             color: #666;
             margin-top: 0;
-            margin-bottom: 15px;
+            margin-bottom: 0px;
         }
 
         .panel {
@@ -224,7 +225,7 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">km [m/s] (境膜物質移動係数･実効吸収速度)</div>
+                <div class="stat-label">km [m/s] (境膜物質移動係数)</div>
                 <div id="out-km" class="stat-value accent">0</div>
             </div>
 
@@ -250,7 +251,7 @@
         <div class="canvas-container">
             <div class="legends">
                 <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#4a90e2"></div>活性粒子</div>
-                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#4a90e2"></div>壁面吸着位置</div>
+                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#E29004"></div>吸着粒子</div>
                 <div class="legend-item"><div style="width:12px;height:4px;border-radius:2px;background:#5aad7a"></div>平均流速 U(y) ※対数表示</div>
                 <div class="legend-item"><div style="width:12px;height:2px;background:#ff5050"></div>相対濃度 C(y)/C_bulk ※対数表示</div>
                 <div class="legend-item"><div style="width:12px;height:2px;background:#c8a030;border-top:2px dashed #c8a030"></div>流路中心線</div>
@@ -316,7 +317,7 @@
                 </p>
             </div>
         </div>
-
+        <p style="font-size: 12px; color: #888;">(c) 2026 Kazuaki Uchibori</p>
     </div>
 
     <script>
@@ -393,7 +394,7 @@
 
         let parts = [], dead = [], totalDead = 0, totalSpawned = 0, simTime = 0;
 
-        const NY_CONC = 100;
+        const NY_CONC = 240;
         let concBins = new Float64Array(NY_CONC);
         let concAvgBins = new Float64Array(NY_CONC);
         let concSamples = 0;
@@ -727,7 +728,7 @@
 
                 let label = "";
                 if (h_tick < 1e-3) label = (h_tick * 1e6).toFixed(0) + " μm";
-                else label = (h_tick * 1000).toFixed(1) + " mm";
+                else label = (h_tick * 1000).toFixed(0) + " mm";
 
                 ctx.setLineDash([]);
                 ctx.fillText(label, MX - 48, gy + 4);
@@ -735,10 +736,10 @@
             }
 
             const centerGy = toSY(delta, delta);
-            ctx.strokeStyle = '#c8a030'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
             ctx.beginPath(); ctx.moveTo(MX, centerGy); ctx.lineTo(MX + PW, centerGy); ctx.stroke();
             ctx.setLineDash([]);
-            ctx.fillStyle = '#c8a030'; ctx.font = '10px sans-serif';
+            ctx.fillStyle = '#999'; ctx.font = '10px sans-serif';
             const centerMm = (delta * 1000).toFixed(0);
             ctx.fillText(`${centerMm} mm`, MX + PW + 6, centerGy + 4);
 
@@ -770,22 +771,22 @@
             if (!showMap) {
                 for (let i = 0; i < dead.length; i++) {
                     const d = dead[i]; const sx = toSX(d.x);
-                    ctx.beginPath(); ctx.arc(sx, wallY, 2.5, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(74,144,226,0.75)'; ctx.fill();
+                    ctx.beginPath(); ctx.arc(sx, wallY, 2.0, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(226,144,4,0.5)'; ctx.fill();
                 }
                 for (let i = 0; i < parts.length; i++) {
                     const pt = parts[i]; const sx = toSX(pt.x); const sy = toSY(pt.y, delta);
                     if (sy >= MY && sy <= wallY) {
-                        ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
-                        ctx.fillStyle = 'rgba(74,144,226,0.75)'; ctx.fill();
+                        ctx.beginPath(); ctx.arc(sx, sy, 2.0, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(74,144,226,0.5)'; ctx.fill();
                     }
                 }
             }
 
             ctx.fillStyle = '#1d1d1f'; ctx.font = 'bold 13px sans-serif';
             ctx.fillText('y (log scale)', MX - 75, MY - 18);
-            ctx.fillText('吸着壁面 (0.0 mm)', MX - 75, wallY + 18);
-            ctx.fillText('x', MX + PW - 120, wallY + 32);
+            //ctx.fillText('吸着壁面 (0.0 mm)', MX - 75, wallY + 18);
+            ctx.fillText('x [m]', MX + PW - 120, wallY + 32);
             for (let i = 0; i <= 5; i++) {
                 const xi = i / 5;
                 ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
@@ -921,10 +922,10 @@
 
             document.getElementById('out-ubulk').textContent = (p.Ubulk * p.H).toExponential(3);
             document.getElementById('out-ustar').textContent = p.ustar.toFixed(4);
-            document.getElementById('out-re').textContent = Math.round(p.Re).toLocaleString();
+            document.getElementById('out-re').textContent = Math.round(p.Re).toFixed(0);
 
             document.getElementById('out-cw').textContent = wallConcRatio.toFixed(3);
-            document.getElementById('out-km').textContent = kmValue.toExponential(2);
+            document.getElementById('out-km').textContent = kmValue.toFixed(4);
             document.getElementById('out-sh').textContent = shValue.toFixed(1);
             document.getElementById('out-dc').textContent = deltaC.toFixed(4);
 
