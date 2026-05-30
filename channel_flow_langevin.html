@@ -44,6 +44,19 @@
             gap: 12px;
         }
 
+        h1 {
+            font-size: 22px;
+            color: #222;
+            margin-bottom: 5px;
+        }
+
+        p {
+            font-size: 13px;
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
         .panel {
             background: var(--color-background-secondary);
             border-radius: 8px;
@@ -197,6 +210,8 @@
 <body>
 
     <div class="container">
+        <h1>Langevin Particle Simulator - Channel Flow</h1>
+        <p>層流または乱流の境界層理論から決定された背景流に基づき、Langevin方程式から粒子挙動を予測し、粒子計数により濃度やSherwood数を算出します。</p>
 
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label">生存粒子数</div><div id="s-alive" class="stat-value">0</div></div>
@@ -223,13 +238,13 @@
                 <div id="out-dc" class="stat-value accent">0</div>
             </div>
             <!--<div class="stat-card">
-                <div class="stat-label">dt [ms] (自動設定)</div>
-                <div id="out-dt" class="stat-value">—</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">subDiv / subCutoff [mm]</div>
-                <div id="out-sub" class="stat-value">—</div>
-            </div>-->
+            <div class="stat-label">dt [ms] (自動設定)</div>
+            <div id="out-dt" class="stat-value">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">subDiv / subCutoff [mm]</div>
+            <div id="out-sub" class="stat-value">—</div>
+        </div>-->
         </div>
 
         <div class="canvas-container">
