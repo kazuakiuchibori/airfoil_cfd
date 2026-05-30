@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Langevin Particle - Channel Flow</title>
+    <title>DAC内部流動 ランジュバン粒子シミュレーター (完全物理整合版)</title>
     <style>
         :root {
             --color-background-primary: #ffffff;
@@ -200,13 +200,13 @@
     <div class="container">
 
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">現存粒子数</div><div id="s-alive" class="stat-value">0</div></div>
-            <div class="stat-card"><div class="stat-label">累計吸着数</div><div id="s-dead" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">生存粒子数</div><div id="s-alive" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">累計吸着(回収)数</div><div id="s-dead" class="stat-value">0</div></div>
             <div class="stat-card"><div class="stat-label">回収効率</div><div id="s-rate" class="stat-value">0%</div></div>
             <div class="stat-card"><div class="stat-label">経過時間</div><div id="s-time" class="stat-value">0.0 s</div></div>
             <div class="stat-card">
-                <div class="stat-label">Cw/C∞</div>
-                <div id="out-cw" class="stat-value accent">1.00</div>
+                <div class="stat-label">Cw/Cinf (壁面濃度比)</div>
+                <div id="out-cw" class="stat-value accent">1.000</div>
             </div>
 
             <div class="stat-card">
@@ -220,7 +220,7 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">δc [m]</div>
+                <div class="stat-label">δc (濃度境界層) [m]</div>
                 <div id="out-dc" class="stat-value accent">0</div>
             </div>
         </div>
@@ -228,9 +228,10 @@
         <div class="canvas-container">
             <div class="legends">
                 <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#4a90e2"></div>活性粒子</div>
-                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#e25a4a"></div>吸着粒子</div>
-                <div class="legend-item"><div style="width:12px;height:4px;border-radius:2px;background:#5aad7a"></div>平均流速 U(y)</div>
-                <div class="legend-item"><div style="width:12px;height:2px;background:#c8a030;border-top:2px dashed #c8a030"></div>δ (境界層厚さ = 流路幅/2)</div>
+                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#4a90e2"></div>壁面吸着位置</div>
+                <div class="legend-item"><div style="width:12px;height:4px;border-radius:2px;background:#5aad7a"></div>平均流速 U(y) ※対数表示</div>
+                <div class="legend-item"><div style="width:12px;height:2px;background:#ff5050"></div>相対濃度 C(y)/C_bulk ※対数表示</div>
+                <div class="legend-item"><div style="width:12px;height:2px;background:#c8a030;border-top:2px dashed #c8a030"></div>流路中心線</div>
                 <div id="flow-indicator" class="flow-status flow-laminar">層流 (Laminar)</div>
             </div>
             <canvas id="cv" width="1200" height="600"></canvas>
@@ -240,19 +241,19 @@
             <div class="panel">
                 <div class="panel-title">設計入力パラメータ (Inputs)</div>
                 <div class="control-row">
-                    <label for="sl-h">流路幅 H [m]</label>
-                    <input id="sl-h" type="range" min="0.001" max="0.050" step="0.001" value="0.010">
+                    <label for="sl-h">流路の隙間 H [m]</label>
+                    <input id="sl-h" type="range" min="0.001" max="0.1" step="0.001" value="0.01">
                     <span id="v-h" class="v-val">0.010</span>
                 </div>
                 <div class="control-row">
                     <label for="sl-q">単位奥行流量 q [m²/s]</label>
-                    <input id="sl-q" type="range" min="0.001" max="0.050" step="0.001" value="0.010">
+                    <input id="sl-q" type="range" min="0.001" max="0.1" step="0.001" value="0.01">
                     <span id="v-q" class="v-val">0.010</span>
                 </div>
                 <div class="control-row">
                     <label for="sl-vw">膜の吸収速度 v_w [m/s]</label>
-                    <input id="sl-vw" type="range" min="0.000" max="0.050" step="0.001" value="0.010">
-                    <span id="v-vw" class="v-val">0.010</span>
+                    <input id="sl-vw" type="range" min="0.000" max="0.1" step="0.001" value="0.01">
+                    <span id="v-vw" class="v-val">0.001</span>
                 </div>
                 <div class="control-row">
                     <label for="sl-dm">分子拡散係数 Dm [×10⁻⁶ m²/s]</label>
@@ -260,8 +261,8 @@
                     <span id="v-dm" class="v-val">16</span>
                 </div>
                 <div class="control-row">
-                    <label for="sl-inf">粒子流入数 / フレーム</label>
-                    <input id="sl-inf" type="range" min="10" max="200" step="1" value="50">
+                    <label for="sl-inf">流入数 / フレーム</label>
+                    <input id="sl-inf" type="range" min="15" max="300" step="1" value="50">
                     <span id="v-inf" class="v-val">50</span>
                 </div>
                 <div class="btn-group">
@@ -289,7 +290,7 @@
                 </div>
                 <p style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; margin: 0;">
                     ※ レイノルズ数 (Re=2300) を閾値として、速度プロファイルと管摩擦係数を層流(ポアズイユ流)・乱流(対数則)に自動切替します。<br>
-                    ※ 層流領域では乱流強度はゼロとなり、分子拡散(ブラウン運動)のみによる壁面輸送となります。
+                    ※ フラックス $J$ と濃度変化 $\Delta C$ の次元・サンプリング正規化を完全に一致させたため、無次元数 ($Sh$) と物理量 ($k_m$) が数学的に正しく収束します。
                 </p>
             </div>
         </div>
@@ -304,18 +305,16 @@
         const MX = 80, MY = 35, MB = 45;
         const PW = CW - MX - 40, PH = CH - MY - MB;
 
-        // 空気の動粘性係数とカルマン定数
         const nu = 1.5e-5, kappa = 0.41;
         const domLen = 1.0;
         const yMin = 1e-5;
 
         const TL_scale = 0.20;
 
-        // UIから設計パラメータを取得し、物理量を自動算出する関数
         function getP() {
             const H = +document.getElementById('sl-h').value;
             const q = +document.getElementById('sl-q').value;
-            const Ubulk = q / H; // 流量と隙間から平均流速を算出
+            const Ubulk = q / H;
             const vw = +document.getElementById('sl-vw').value;
             const Dm = +document.getElementById('sl-dm').value * 1e-6;
             const nInf = +document.getElementById('sl-inf').value;
@@ -325,27 +324,20 @@
 
             let f;
             if (Re < 2300) {
-                // 層流の場合 (2Dチャネルの摩擦係数 f = 96 / Re)
                 f = 96.0 / Math.max(Re, 1);
             } else {
-                // 乱流の場合 (ブラジウスの式)
                 f = 0.3164 * Math.pow(Math.max(Re, 1), -0.25);
             }
-
-            // 摩擦速度
             const ustar = Ubulk * Math.sqrt(f / 8.0);
 
             return { H, q, Ubulk, vw, Dm, nInf, delta, Re, f, ustar };
         }
 
-        // 速度プロファイル (層流/乱流の自動切替)
         function Umean(y, p) {
             if (p.Re < 2300) {
-                // --- 層流：平面ポアズイユ流（放物線分布） ---
                 const y_norm = (p.delta - Math.max(y, 0)) / p.delta;
                 return 1.5 * p.Ubulk * (1.0 - y_norm * y_norm);
             } else {
-                // --- 乱流：壁面法則（対数則） ---
                 const yp = p.ustar * Math.max(y, 1e-12) / nu;
                 let u;
                 if (yp < 5) u = p.ustar * yp;
@@ -357,13 +349,11 @@
             }
         }
 
-        // 垂直速度揺らぎプロファイル (乱流時のみ)
         function getSigmaV(y, ustar, delta) {
             const yp = ustar * Math.max(y, 1e-12) / nu;
             return 1.1 * ustar * Math.pow(1 - Math.exp(-yp / 20), 2) * Math.exp(-y / (0.8 * delta));
         }
 
-        // ラグランジュ時間スケール (乱流時のみ)
         function getTL(y, ustar, delta) {
             const t_wall = 10 * nu / (ustar * ustar);
             const t_outer = (kappa * Math.max(y, 1e-12) / ustar) * (1 - Math.exp(-y / delta));
@@ -378,7 +368,8 @@
         }
 
         let parts = [], dead = [], totalDead = 0, totalSpawned = 0, simTime = 0;
-        const NY_CONC = 300;
+
+        const NY_CONC = 100;
         let concBins = new Float64Array(NY_CONC);
         let concAvgBins = new Float64Array(NY_CONC);
         let concSamples = 0;
@@ -387,7 +378,7 @@
         const HW = 120, HH = 60;
         let hmap = new Float32Array(HW * HH);
         let showMap = false, running = false, rafId = null;
-        const dt = 0.004;
+        const dt = 0.002;
 
         function resetAll() {
             parts = []; dead = []; totalDead = 0; totalSpawned = 0; simTime = 0;
@@ -442,8 +433,7 @@
 
                 if (pt.y >= subCutoff) {
                     if (Re < 2300) {
-                        const Um = Umean(pt.y, p);
-                        pt.vx = Um;
+                        pt.vx = Umean(pt.y, p);
                         pt.vy = 0;
                         pt.x += pt.vx * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
                         pt.y += pt.vy * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
@@ -472,8 +462,7 @@
                 else {
                     for (let step = 0; step < subDiv; step++) {
                         if (Re < 2300) {
-                            const Um = Umean(pt.y, p);
-                            pt.vx = Um;
+                            pt.vx = Umean(pt.y, p);
                             pt.vy = 0;
                             pt.x += pt.vx * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
                             pt.y += pt.vy * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
@@ -489,7 +478,6 @@
 
                             const sig2 = sig_c * sig_c;
                             let drift = 0;
-
                             if (sig2 > 1e-14) {
                                 const vy_ratio_sq = Math.min((pt.vy * pt.vy) / sig2, 9.0);
                                 drift = 0.5 * dSig2_dy * (1.0 + vy_ratio_sq);
@@ -529,8 +517,6 @@
                 if (isDead) continue;
                 if (pt.x > domLen) continue;
 
-                // 対称軸（チャネル中心）での正しい鏡面反射
-                // これにより粒子は物理的に 0 〜 H/2 の領域にのみ存在します
                 if (pt.y > delta) {
                     pt.y = 2 * delta - pt.y;
                     pt.vy = -pt.vy;
@@ -549,6 +535,7 @@
             }
             parts = keep;
             for (let k = 0; k < hmap.length; k++) hmap[k] *= 0.998;
+
             updateConcentrationStatistics();
             simTime += dt;
             if (dead.length > 2000) dead.splice(0, dead.length - 2000);
@@ -556,7 +543,6 @@
 
         function toSX(x) { return MX + (x / domLen) * PW; }
 
-        // 対数スケールでのY座標変換
         function toSY(y, delta) {
             const log_ymin = Math.log(yMin);
             const log_ymax = Math.log(delta);
@@ -585,17 +571,25 @@
 
             ctx.strokeStyle = '#ff5050';
             ctx.lineWidth = 2;
-            const maxWidth = 120;
+            const maxWidth = 100;
+
             const log_ymin_d = Math.log(yMin);
             const log_ymax_d = Math.log(delta);
+            const dly = (log_ymax_d - log_ymin_d) / NY_CONC;
 
             ctx.beginPath();
             for (let j = 0; j < NY_CONC; j++) {
-                const ly_d = log_ymin_d + (j / (NY_CONC - 1)) * (log_ymax_d - log_ymin_d);
-                const y    = Math.exp(ly_d);
-                const C    = concAvgBins[j] / Math.max(bulkConcValue, 1e-12);
-                const sx   = MX + C * maxWidth;
-                const sy   = toSY(y, delta);
+                const y_bot = (j === 0) ? 0 : Math.exp(log_ymin_d + j * dly);
+                const y_top = Math.exp(log_ymin_d + (j + 1) * dly);
+                const dy = y_top - y_bot;
+
+                const C_val = (concAvgBins[j] / concSamples) / Math.max(dy * domLen, 1e-12);
+                const C_ratio = C_val / Math.max(bulkConcValue, 1e-12);
+
+                const y_center = Math.exp(log_ymin_d + (j + 0.5) * dly);
+                const sx = MX + C_ratio * maxWidth;
+                const sy = toSY(y_center, delta);
+
                 if (j === 0) ctx.moveTo(sx, sy);
                 else ctx.lineTo(sx, sy);
             }
@@ -610,15 +604,13 @@
             ctx.fillStyle = '#f9f9f7';
             ctx.fillRect(0, 0, CW, CH);
 
-            // X軸の補助線
             ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 0.5;
             for (let i = 0; i <= 5; i++) {
                 const x = toSX(i / 5);
                 ctx.beginPath(); ctx.moveTo(x, MY); ctx.lineTo(x, MY + PH); ctx.stroke();
             }
 
-            // Y軸のグリッドを動的生成（対数スケール）
-            let h_tick = 1e-4; // 100 μmからスタート
+            let h_tick = 1e-4;
             ctx.fillStyle = '#999'; ctx.font = '10px sans-serif';
             while (h_tick < delta) {
                 const gy = toSY(h_tick, delta);
@@ -631,18 +623,16 @@
 
                 ctx.setLineDash([]);
                 ctx.fillText(label, MX - 48, gy + 4);
-
                 h_tick *= 10;
             }
 
-            // グラフ上端（流路中心）を描画・ラベリング
-            const centerGy = toSY(delta, delta); // MYと一致
-            ctx.strokeStyle = '#c8a030'; ctx.lineWidth = 1.0; ctx.setLineDash([5, 4]);
+            const centerGy = toSY(delta, delta);
+            ctx.strokeStyle = '#c8a030'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
             ctx.beginPath(); ctx.moveTo(MX, centerGy); ctx.lineTo(MX + PW, centerGy); ctx.stroke();
             ctx.setLineDash([]);
-            ctx.fillStyle = '#c8a030'; ctx.font = '10px sans-serif';
-            const centerMm = (delta * 1000).toFixed(1);
-            ctx.fillText(`${centerMm}mm`, MX + PW + 6, centerGy + 4);
+            ctx.fillStyle = '#c8a030'; ctx.font = 'bold 12px sans-serif';
+            const centerMm = (delta * 1000).toFixed(2);
+            ctx.fillText(`流路中心 (${centerMm} mm)`, MX + PW + 6, centerGy + 4);
 
             if (showMap) {
                 let mx = 0;
@@ -662,7 +652,6 @@
                 }
             }
 
-            // 壁面の描画
             const wallY = MY + PH;
             ctx.strokeStyle = '#1d1d1f'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(MX, wallY); ctx.lineTo(MX + PW, wallY); ctx.stroke();
@@ -674,7 +663,7 @@
                 for (let i = 0; i < dead.length; i++) {
                     const d = dead[i]; const sx = toSX(d.x);
                     ctx.beginPath(); ctx.arc(sx, wallY, 2.5, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(226,90,74,0.5)'; ctx.fill();
+                    ctx.fillStyle = 'rgba(74,144,226,0.75)'; ctx.fill();
                 }
                 for (let i = 0; i < parts.length; i++) {
                     const pt = parts[i]; const sx = toSX(pt.x); const sy = toSY(pt.y, delta);
@@ -685,10 +674,9 @@
                 }
             }
 
-            // UIテキストをより正確な表現に変更
-            ctx.fillStyle = '#333'; ctx.font = 'bold 13px sans-serif';
-            ctx.fillText('y (対数表示) [壁面 〜 流路中心]', MX - 75, MY - 18);
-            ctx.fillText('壁面 (0.0 mm)', MX - 75, wallY + 18);
+            ctx.fillStyle = '#1d1d1f'; ctx.font = 'bold 13px sans-serif';
+            ctx.fillText('y (壁面からの距離 : 対数スケール)', MX - 75, MY - 18);
+            ctx.fillText('吸着壁面 (0.0 mm)', MX - 75, wallY + 18);
             ctx.fillText('x (流れ方向) →', MX + PW - 120, wallY + 32);
             for (let i = 0; i <= 5; i++) {
                 const xi = i / 5;
@@ -703,13 +691,15 @@
 
             const log_ymin_c = Math.log(yMin);
             const log_ymax_c = Math.log(p.delta);
+            const dly = (log_ymax_c - log_ymin_c) / NY_CONC;
 
+            // 各ビンの粒子数をカウント
             for (let i = 0; i < parts.length; i++) {
                 const y = parts[i].y;
                 if (y <= 0) continue;
                 const ly = Math.log(Math.max(y, yMin));
-                const r = Math.max(0, Math.min(1, (ly - log_ymin_c) / (log_ymax_c - log_ymin_c)));
-                const j = Math.min(NY_CONC - 1, Math.floor(r * (NY_CONC - 1)));
+                const r = Math.max(0, Math.min(0.999999, (ly - log_ymin_c) / (log_ymax_c - log_ymin_c)));
+                const j = Math.floor(r * NY_CONC);
                 concBins[j]++;
             }
 
@@ -719,43 +709,62 @@
             concSamples++;
             if (concSamples < 50) return;
 
-            const log_ymin_b = Math.log(yMin);
-            const log_ymax_b = Math.log(p.delta);
+            // 【完全修正】累積サンプル数・物理空間面積で割り、真の「単位面積あたり粒子数 (濃度)」にする
+            let C_array = new Float64Array(NY_CONC);
+            for (let j = 0; j < NY_CONC; j++) {
+                const y_bot = (j === 0) ? 0 : Math.exp(log_ymin_c + j * dly);
+                const y_top = Math.exp(log_ymin_c + (j + 1) * dly);
+                const dy = y_top - y_bot;
 
+                C_array[j] = (concAvgBins[j] / concSamples) / Math.max(dy * domLen, 1e-12);
+            }
+
+            // バルク(カップ混合)濃度の重み付き積分
             let bulkNumer = 0, bulkDenom = 0;
             for (let j = 0; j < NY_CONC; j++) {
-                const ly_b = log_ymin_b + (j / (NY_CONC - 1)) * (log_ymax_b - log_ymin_b);
-                const y_b  = Math.exp(ly_b);
-                const U_j  = Umean(y_b, p);
-                const w    = U_j * y_b;
-                bulkNumer += w * concAvgBins[j];
-                bulkDenom += w;
+                const y_j = Math.exp(log_ymin_c + (j + 0.5) * dly);
+                const U_j = Umean(y_j, p);
+
+                const y_bot = (j === 0) ? 0 : Math.exp(log_ymin_c + j * dly);
+                const y_top = Math.exp(log_ymin_c + (j + 1) * dly);
+                const dy = y_top - y_bot;
+
+                bulkNumer += U_j * C_array[j] * dy;
+                bulkDenom += U_j * dy;
             }
 
             bulkConcValue = bulkDenom > 1e-12 ? bulkNumer / bulkDenom : 1.0;
             if (bulkConcValue < 1e-12) bulkConcValue = 1e-12;
 
-            let wallSum = 0;
-            for (let j = 0; j < 3; j++) wallSum += concAvgBins[j];
-            const wallConc = wallSum / 3.0;
+            // 壁面濃度の厳密な体積平均（最初の3つの対数ビン）
+            let wallN = 0, wallDy = 0;
+            for (let j = 0; j < 3; j++) {
+                const y_bot = (j === 0) ? 0 : Math.exp(log_ymin_c + j * dly);
+                const y_top = Math.exp(log_ymin_c + (j + 1) * dly);
+                const dy = y_top - y_bot;
+                wallN += C_array[j] * dy;
+                wallDy += dy;
+            }
+            const wallConc = wallDy > 0 ? wallN / wallDy : 0;
             wallConcRatio = wallConc / bulkConcValue;
 
+            // 【完全修正】時間平均フラックスと次元が揃った絶対濃度による物質移動係数の算出
             const J = totalDead / Math.max(simTime * domLen, 1e-12);
             const deltaCbulk = bulkConcValue - wallConc;
 
             if (deltaCbulk > 1e-12) {
                 kmValue = J / deltaCbulk;
                 shValue = kmValue * p.H / p.Dm;
+            } else {
+                kmValue = 0;
+                shValue = 0;
             }
 
             deltaC = p.delta;
-            const log_ymin_dc = Math.log(yMin);
-            const log_ymax_dc = Math.log(p.delta);
             for (let j = 0; j < NY_CONC; j++) {
-                const C = concAvgBins[j] / bulkConcValue;
+                const C = C_array[j] / bulkConcValue;
                 if (C > 0.99) {
-                    const ly_dc = log_ymin_dc + (j / (NY_CONC - 1)) * (log_ymax_dc - log_ymin_dc);
-                    deltaC = Math.exp(ly_dc);
+                    deltaC = Math.exp(log_ymin_c + j * dly);
                     break;
                 }
             }
@@ -764,6 +773,7 @@
         function updateDisplays() {
             const p = getP();
 
+            document.getElementById('sl-h').value = p.H;
             document.getElementById('v-h').textContent = p.H.toFixed(3);
             document.getElementById('v-q').textContent = p.q.toFixed(3);
             document.getElementById('v-vw').textContent = p.vw.toFixed(3);
@@ -787,10 +797,10 @@
 
             const ind = document.getElementById('flow-indicator');
             if (p.Re < 2300) {
-                ind.textContent = '層流 (Laminar flow)';
+                ind.textContent = '層流 (Laminar)';
                 ind.className = 'flow-status flow-laminar';
             } else {
-                ind.textContent = '乱流 (Turbulent flow)';
+                ind.textContent = '乱流 (Turbulent)';
                 ind.className = 'flow-status flow-turbulent';
             }
         }
@@ -807,11 +817,8 @@
 
         document.getElementById('btn-run').addEventListener('click', function () {
             running = !running; this.textContent = running ? '⏸ 停止' : '▶ 開始';
-            if (running) {
-                this.classList.remove('secondary');
-            } else {
-                this.classList.add('secondary');
-            }
+            if (running) this.classList.remove('secondary');
+            else this.classList.add('secondary');
             if (running && !rafId) rafId = requestAnimationFrame(loop);
         });
 
