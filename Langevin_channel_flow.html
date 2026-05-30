@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Langevin Particle - Channel Flow</title>
+    <style>
+        :root {
+            --color-background-primary: #ffffff;
+            --color-background-secondary: #f5f5f7;
+            --color-background-tertiary: #e8e8ed;
+            --color-text-primary: #1d1d1f;
+            --color-text-secondary: #86868b;
+            --color-border-secondary: #d2d2d7;
+            --color-border-tertiary: #e5e5ea;
+            --color-accent: #0071e3;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --color-background-primary: #1c1c1e;
+                --color-background-secondary: #2c2c2e;
+                --color-background-tertiary: #3a3a3c;
+                --color-text-primary: #f5f5f7;
+                --color-text-secondary: #aeaeac;
+                --color-border-secondary: #48484a;
+                --color-border-tertiary: #3a3a3c;
+                --color-accent: #2997ff;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--color-background-primary);
+            color: var(--color-text-primary);
+            margin: 0;
+            padding: 12px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel {
+            background: var(--color-background-secondary);
+            border-radius: 8px;
+            padding: 12px 16px;
+            border: 1px solid var(--color-border-tertiary);
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--color-text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .stat-card {
+            background: var(--color-background-tertiary);
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+            .stat-value.accent {
+                color: var(--color-accent);
+            }
+
+        .canvas-container {
+            width: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            max-height: 48vh;
+            border: 0.5px solid var(--color-border-tertiary);
+            border-radius: 8px;
+            background: #f9f9f7;
+        }
+
+        .legends {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+            .control-row label {
+                font-size: 13px;
+                color: var(--color-text-primary);
+                min-width: 180px;
+            }
+
+            .control-row input[type="range"] {
+                flex: 1;
+            }
+
+            .control-row .v-val {
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 45px;
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        button {
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: var(--color-accent);
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.1s ease;
+        }
+
+            button:hover {
+                opacity: 0.85;
+            }
+
+            button.secondary {
+                background: var(--color-background-tertiary);
+                color: var(--color-text-primary);
+                border: 1px solid var(--color-border-secondary);
+            }
+
+        .flow-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .flow-laminar {
+            background-color: #5aad7a;
+            color: white;
+        }
+
+        .flow-turbulent {
+            background-color: #e25a4a;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">現存粒子数</div><div id="s-alive" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">累計吸着数</div><div id="s-dead" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">回収効率</div><div id="s-rate" class="stat-value">0%</div></div>
+            <div class="stat-card"><div class="stat-label">経過時間</div><div id="s-time" class="stat-value">0.0 s</div></div>
+            <div class="stat-card">
+                <div class="stat-label">Cw/C∞</div>
+                <div id="out-cw" class="stat-value accent">1.00</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">km [m/s]</div>
+                <div id="out-km" class="stat-value accent">0</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Sh</div>
+                <div id="out-sh" class="stat-value accent">0</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">δc [m]</div>
+                <div id="out-dc" class="stat-value accent">0</div>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <div class="legends">
+                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#4a90e2"></div>活性粒子</div>
+                <div class="legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#e25a4a"></div>吸着粒子</div>
+                <div class="legend-item"><div style="width:12px;height:4px;border-radius:2px;background:#5aad7a"></div>平均流速 U(y)</div>
+                <div class="legend-item"><div style="width:12px;height:2px;background:#c8a030;border-top:2px dashed #c8a030"></div>δ (境界層厚さ = 流路幅/2)</div>
+                <div id="flow-indicator" class="flow-status flow-laminar">層流 (Laminar)</div>
+            </div>
+            <canvas id="cv" width="1200" height="600"></canvas>
+        </div>
+
+        <div class="controls-grid">
+            <div class="panel">
+                <div class="panel-title">設計入力パラメータ (Inputs)</div>
+                <div class="control-row">
+                    <label for="sl-h">流路幅 H [m]</label>
+                    <input id="sl-h" type="range" min="0.001" max="0.050" step="0.001" value="0.010">
+                    <span id="v-h" class="v-val">0.010</span>
+                </div>
+                <div class="control-row">
+                    <label for="sl-q">単位奥行流量 q [m²/s]</label>
+                    <input id="sl-q" type="range" min="0.001" max="0.050" step="0.001" value="0.010">
+                    <span id="v-q" class="v-val">0.010</span>
+                </div>
+                <div class="control-row">
+                    <label for="sl-vw">膜の吸収速度 v_w [m/s]</label>
+                    <input id="sl-vw" type="range" min="0.000" max="0.050" step="0.001" value="0.010">
+                    <span id="v-vw" class="v-val">0.010</span>
+                </div>
+                <div class="control-row">
+                    <label for="sl-dm">分子拡散係数 Dm [×10⁻⁶ m²/s]</label>
+                    <input id="sl-dm" type="range" min="1" max="30" step="1" value="16">
+                    <span id="v-dm" class="v-val">16</span>
+                </div>
+                <div class="control-row">
+                    <label for="sl-inf">粒子流入数 / フレーム</label>
+                    <input id="sl-inf" type="range" min="10" max="200" step="1" value="50">
+                    <span id="v-inf" class="v-val">50</span>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-run">▶ 開始</button>
+                    <button id="btn-reset" class="secondary">リセット</button>
+                    <button id="btn-view" class="secondary">密度マップ表示</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">自動算出パラメータ (Outputs)</div>
+                <div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="stat-card">
+                        <div class="stat-label">平均流速 U_bulk [m/s]</div>
+                        <div id="out-ubulk" class="stat-value accent">0.000</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">摩擦速度 u* [m/s]</div>
+                        <div id="out-ustar" class="stat-value accent">0.000</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">レイノルズ数 Re</div>
+                        <div id="out-re" class="stat-value accent">0</div>
+                    </div>
+                </div>
+                <p style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; margin: 0;">
+                    ※ レイノルズ数 (Re=2300) を閾値として、速度プロファイルと管摩擦係数を層流(ポアズイユ流)・乱流(対数則)に自動切替します。<br>
+                    ※ 層流領域では乱流強度はゼロとなり、分子拡散(ブラウン運動)のみによる壁面輸送となります。
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const cv = document.getElementById('cv');
+        const ctx = cv.getContext('2d');
+
+        const CW = 1200, CH = 600;
+        const MX = 80, MY = 35, MB = 45;
+        const PW = CW - MX - 40, PH = CH - MY - MB;
+
+        // 空気の動粘性係数とカルマン定数
+        const nu = 1.5e-5, kappa = 0.41;
+        const domLen = 1.0;
+        const yMin = 1e-5;
+
+        const TL_scale = 0.20;
+
+        // UIから設計パラメータを取得し、物理量を自動算出する関数
+        function getP() {
+            const H = +document.getElementById('sl-h').value;
+            const q = +document.getElementById('sl-q').value;
+            const Ubulk = q / H; // 流量と隙間から平均流速を算出
+            const vw = +document.getElementById('sl-vw').value;
+            const Dm = +document.getElementById('sl-dm').value * 1e-6;
+            const nInf = +document.getElementById('sl-inf').value;
+
+            const delta = H / 2.0;
+            const Re = (Ubulk * 2.0 * H) / nu;
+
+            let f;
+            if (Re < 2300) {
+                // 層流の場合 (2Dチャネルの摩擦係数 f = 96 / Re)
+                f = 96.0 / Math.max(Re, 1);
+            } else {
+                // 乱流の場合 (ブラジウスの式)
+                f = 0.3164 * Math.pow(Math.max(Re, 1), -0.25);
+            }
+
+            // 摩擦速度
+            const ustar = Ubulk * Math.sqrt(f / 8.0);
+
+            return { H, q, Ubulk, vw, Dm, nInf, delta, Re, f, ustar };
+        }
+
+        // 速度プロファイル (層流/乱流の自動切替)
+        function Umean(y, p) {
+            if (p.Re < 2300) {
+                // --- 層流：平面ポアズイユ流（放物線分布） ---
+                const y_norm = (p.delta - Math.max(y, 0)) / p.delta;
+                return 1.5 * p.Ubulk * (1.0 - y_norm * y_norm);
+            } else {
+                // --- 乱流：壁面法則（対数則） ---
+                const yp = p.ustar * Math.max(y, 1e-12) / nu;
+                let u;
+                if (yp < 5) u = p.ustar * yp;
+                else if (yp < 30) u = p.ustar * (5 * Math.log(yp) - 3.05);
+                else u = (p.ustar / kappa) * Math.log(yp) + 5.0 * p.ustar;
+
+                const wake = (u * 0.15) * (1 - Math.cos(Math.PI * Math.min(y / p.delta, 1)));
+                return Math.max(0, u + wake);
+            }
+        }
+
+        // 垂直速度揺らぎプロファイル (乱流時のみ)
+        function getSigmaV(y, ustar, delta) {
+            const yp = ustar * Math.max(y, 1e-12) / nu;
+            return 1.1 * ustar * Math.pow(1 - Math.exp(-yp / 20), 2) * Math.exp(-y / (0.8 * delta));
+        }
+
+        // ラグランジュ時間スケール (乱流時のみ)
+        function getTL(y, ustar, delta) {
+            const t_wall = 10 * nu / (ustar * ustar);
+            const t_outer = (kappa * Math.max(y, 1e-12) / ustar) * (1 - Math.exp(-y / delta));
+            return TL_scale * (t_wall + t_outer);
+        }
+
+        function randn() {
+            let u = 0, v = 0;
+            while (!u) u = Math.random();
+            while (!v) v = Math.random();
+            return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+        }
+
+        let parts = [], dead = [], totalDead = 0, totalSpawned = 0, simTime = 0;
+        const NY_CONC = 300;
+        let concBins = new Float64Array(NY_CONC);
+        let concAvgBins = new Float64Array(NY_CONC);
+        let concSamples = 0;
+        let wallConcRatio = 1.0, bulkConcValue = 1.0, kmValue = 0.0, shValue = 0.0, deltaC = 0.0;
+
+        const HW = 120, HH = 60;
+        let hmap = new Float32Array(HW * HH);
+        let showMap = false, running = false, rafId = null;
+        const dt = 0.004;
+
+        function resetAll() {
+            parts = []; dead = []; totalDead = 0; totalSpawned = 0; simTime = 0;
+            concBins.fill(0); concAvgBins.fill(0); concSamples = 0;
+            wallConcRatio = 1.0; bulkConcValue = 1.0; kmValue = 0.0; shValue = 0.0; deltaC = 0.0;
+            hmap = new Float32Array(HW * HH);
+            updateDisplays(); redraw();
+        }
+
+        function spawn(n) {
+            const p = getP();
+            const yMax = p.delta;
+            const maxU = Umean(yMax, p);
+
+            let spawned = 0;
+            let attempts = 0;
+            const maxAttempts = n * 500;
+
+            while (spawned < n && attempts < maxAttempts) {
+                attempts++;
+                const y = yMin + (yMax - yMin) * Math.random();
+                const uLocal = Umean(y, p);
+
+                if (Math.random() < uLocal / maxU) {
+                    if (p.Re < 2300) {
+                        parts.push({ x: 0, y: y, vx: uLocal, vy: 0 });
+                    } else {
+                        const sig = getSigmaV(y, p.ustar, p.delta);
+                        parts.push({ x: 0, y: y, vx: uLocal + randn() * sig * 2.0, vy: randn() * sig });
+                    }
+                    spawned++;
+                    totalSpawned++;
+                }
+            }
+        }
+
+        function step() {
+            const p = getP();
+            const { ustar, delta, Dm, vw, Re } = p;
+            const keep = [];
+
+            const subCutoff = 0.002;
+            const subDiv = 100;
+            const dtSub = dt / subDiv;
+            const sdtSub = Math.sqrt(dtSub);
+            const sdtMain = Math.sqrt(dt);
+            const dy_diff = 1e-6;
+
+            for (let i = 0; i < parts.length; i++) {
+                let pt = parts[i];
+                let isDead = false;
+
+                if (pt.y >= subCutoff) {
+                    if (Re < 2300) {
+                        const Um = Umean(pt.y, p);
+                        pt.vx = Um;
+                        pt.vy = 0;
+                        pt.x += pt.vx * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
+                        pt.y += pt.vy * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
+                    } else {
+                        const Um = Umean(pt.y, p);
+                        const sig_c = getSigmaV(pt.y, ustar, delta);
+                        const TL_y = getTL(pt.y, ustar, delta);
+
+                        const sig_p = getSigmaV(pt.y + dy_diff, ustar, delta);
+                        const y_m = Math.max(1e-12, pt.y - dy_diff);
+                        const sig_m = getSigmaV(y_m, ustar, delta);
+                        const dSig2_dy = (sig_p * sig_p - sig_m * sig_m) / (pt.y + dy_diff - y_m);
+
+                        const sig2 = sig_c * sig_c;
+                        const vy_ratio_sq = Math.min((pt.vy * pt.vy) / Math.max(sig2, 1e-14), 9.0);
+                        const drift = 0.5 * dSig2_dy * (1.0 + vy_ratio_sq);
+
+                        const sig_u = 2.3 * ustar;
+                        pt.vx += (-(pt.vx - Um) / TL_y) * dt + sig_u * Math.sqrt(2 / TL_y) * randn() * sdtMain;
+                        pt.vy += (-pt.vy / TL_y) * dt + drift * dt + sig_c * Math.sqrt(2 / TL_y) * randn() * sdtMain;
+
+                        pt.x += pt.vx * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
+                        pt.y += pt.vy * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
+                    }
+                }
+                else {
+                    for (let step = 0; step < subDiv; step++) {
+                        if (Re < 2300) {
+                            const Um = Umean(pt.y, p);
+                            pt.vx = Um;
+                            pt.vy = 0;
+                            pt.x += pt.vx * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
+                            pt.y += pt.vy * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
+                        } else {
+                            const Um = Umean(pt.y, p);
+                            const sig_c = getSigmaV(pt.y, ustar, delta);
+                            const TL_y = getTL(pt.y, ustar, delta);
+
+                            const sig_p = getSigmaV(pt.y + dy_diff, ustar, delta);
+                            const y_m = Math.max(1e-12, pt.y - dy_diff);
+                            const sig_m = getSigmaV(y_m, ustar, delta);
+                            const dSig2_dy = (sig_p * sig_p - sig_m * sig_m) / (pt.y + dy_diff - y_m);
+
+                            const sig2 = sig_c * sig_c;
+                            let drift = 0;
+
+                            if (sig2 > 1e-14) {
+                                const vy_ratio_sq = Math.min((pt.vy * pt.vy) / sig2, 9.0);
+                                drift = 0.5 * dSig2_dy * (1.0 + vy_ratio_sq);
+                            } else {
+                                drift = 0.5 * dSig2_dy;
+                                pt.vy *= 0.9;
+                            }
+
+                            const sig_u_sub = 2.3 * ustar;
+                            pt.vx += (-(pt.vx - Um) / TL_y) * dtSub + sig_u_sub * Math.sqrt(2 / TL_y) * randn() * sdtSub;
+                            pt.vy += (-pt.vy / TL_y) * dtSub + drift * dtSub + sig_c * Math.sqrt(2 / TL_y) * randn() * sdtSub;
+
+                            pt.x += pt.vx * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
+                            pt.y += pt.vy * dtSub + Math.sqrt(2 * Dm) * randn() * sdtSub;
+                        }
+
+                        if (pt.y <= 0) {
+                            const penetration = Math.max(-pt.y, 1e-12);
+                            const P_absorb = 1.0 - Math.exp(-vw * penetration / Dm);
+                            if (Math.random() < P_absorb) {
+                                dead.push({ x: Math.max(0, Math.min(pt.x, domLen)) });
+                                totalDead++;
+                                const hx = Math.floor(Math.max(0, Math.min(pt.x, domLen)) / domLen * (HW - 1));
+                                for (let hy = 0; hy < Math.floor(HH * 0.15); hy++) {
+                                    hmap[hy * HW + hx] += 0.3 * (1 - hy / (HH * 0.15));
+                                }
+                                isDead = true;
+                                break;
+                            } else {
+                                pt.y = -pt.y;
+                                pt.vy = -pt.vy;
+                            }
+                        }
+                    }
+                }
+
+                if (isDead) continue;
+                if (pt.x > domLen) continue;
+
+                // 対称軸（チャネル中心）での正しい鏡面反射
+                // これにより粒子は物理的に 0 〜 H/2 の領域にのみ存在します
+                if (pt.y > delta) {
+                    pt.y = 2 * delta - pt.y;
+                    pt.vy = -pt.vy;
+                    if (pt.y > delta) pt.y = delta;
+                }
+
+                const hxi = Math.floor(Math.min(pt.x, domLen - 1e-9) / domLen * (HW - 1));
+                const ly_curr = Math.log(Math.max(pt.y, yMin));
+                const ly_min = Math.log(yMin);
+                const ly_max = Math.log(delta);
+                const ratio = Math.max(0, Math.min(1, (ly_curr - ly_min) / (ly_max - ly_min)));
+                const hyi = Math.floor(ratio * (HH - 1));
+
+                hmap[(HH - 1 - hyi) * HW + hxi] += 0.03;
+                keep.push(pt);
+            }
+            parts = keep;
+            for (let k = 0; k < hmap.length; k++) hmap[k] *= 0.998;
+            updateConcentrationStatistics();
+            simTime += dt;
+            if (dead.length > 2000) dead.splice(0, dead.length - 2000);
+        }
+
+        function toSX(x) { return MX + (x / domLen) * PW; }
+
+        // 対数スケールでのY座標変換
+        function toSY(y, delta) {
+            const log_ymin = Math.log(yMin);
+            const log_ymax = Math.log(delta);
+            const ly = Math.log(Math.max(y, yMin));
+            const ratio = (ly - log_ymin) / (log_ymax - log_ymin);
+            return MY + PH - ratio * PH;
+        }
+
+        function drawProf(p) {
+            ctx.strokeStyle = '#5aad7a'; ctx.lineWidth = 2.5;
+            const maxU = Umean(p.delta, p) * 1.2 || 1;
+            const profPx = 100;
+            ctx.beginPath();
+            for (let i = 0; i <= 150; i++) {
+                const y = i / 150 * p.delta;
+                const u = Umean(y, p);
+                const sx = MX + (u / maxU) * profPx;
+                const sy = toSY(y, p.delta);
+                i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+            }
+            ctx.stroke();
+        }
+
+        function drawConcentrationProfile(delta) {
+            if (concSamples < 50) return;
+
+            ctx.strokeStyle = '#ff5050';
+            ctx.lineWidth = 2;
+            const maxWidth = 120;
+            const log_ymin_d = Math.log(yMin);
+            const log_ymax_d = Math.log(delta);
+
+            ctx.beginPath();
+            for (let j = 0; j < NY_CONC; j++) {
+                const ly_d = log_ymin_d + (j / (NY_CONC - 1)) * (log_ymax_d - log_ymin_d);
+                const y    = Math.exp(ly_d);
+                const C    = concAvgBins[j] / Math.max(bulkConcValue, 1e-12);
+                const sx   = MX + C * maxWidth;
+                const sy   = toSY(y, delta);
+                if (j === 0) ctx.moveTo(sx, sy);
+                else ctx.lineTo(sx, sy);
+            }
+            ctx.stroke();
+        }
+
+        function redraw() {
+            const p = getP();
+            const { delta } = p;
+
+            ctx.clearRect(0, 0, CW, CH);
+            ctx.fillStyle = '#f9f9f7';
+            ctx.fillRect(0, 0, CW, CH);
+
+            // X軸の補助線
+            ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 5; i++) {
+                const x = toSX(i / 5);
+                ctx.beginPath(); ctx.moveTo(x, MY); ctx.lineTo(x, MY + PH); ctx.stroke();
+            }
+
+            // Y軸のグリッドを動的生成（対数スケール）
+            let h_tick = 1e-4; // 100 μmからスタート
+            ctx.fillStyle = '#999'; ctx.font = '10px sans-serif';
+            while (h_tick < delta) {
+                const gy = toSY(h_tick, delta);
+                ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.setLineDash([2, 4]);
+                ctx.beginPath(); ctx.moveTo(MX, gy); ctx.lineTo(MX + PW, gy); ctx.stroke();
+
+                let label = "";
+                if (h_tick < 1e-3) label = (h_tick * 1e6).toFixed(0) + " μm";
+                else label = (h_tick * 1000).toFixed(1) + " mm";
+
+                ctx.setLineDash([]);
+                ctx.fillText(label, MX - 48, gy + 4);
+
+                h_tick *= 10;
+            }
+
+            // グラフ上端（流路中心）を描画・ラベリング
+            const centerGy = toSY(delta, delta); // MYと一致
+            ctx.strokeStyle = '#c8a030'; ctx.lineWidth = 1.0; ctx.setLineDash([5, 4]);
+            ctx.beginPath(); ctx.moveTo(MX, centerGy); ctx.lineTo(MX + PW, centerGy); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#c8a030'; ctx.font = '10px sans-serif';
+            const centerMm = (delta * 1000).toFixed(1);
+            ctx.fillText(`${centerMm}mm`, MX + PW + 6, centerGy + 4);
+
+            if (showMap) {
+                let mx = 0;
+                for (let k = 0; k < hmap.length; k++) if (hmap[k] > mx) mx = hmap[k];
+                if (mx > 0) {
+                    const cw = PW / HW, ch = PH / HH;
+                    for (let hy = 0; hy < HH; hy++) {
+                        for (let hx = 0; hx < HW; hx++) {
+                            const v = hmap[hy * HW + hx] / mx;
+                            if (v < 0.02) continue;
+                            const a = Math.min(v * 0.88, 0.88);
+                            const r = Math.round(45 + v * 140), g = Math.round(35 + v * 75), b = Math.round(210 + v * 45);
+                            ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+                            ctx.fillRect(MX + hx * cw, MY + hy * ch, cw + 0.5, ch + 0.5);
+                        }
+                    }
+                }
+            }
+
+            // 壁面の描画
+            const wallY = MY + PH;
+            ctx.strokeStyle = '#1d1d1f'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(MX, wallY); ctx.lineTo(MX + PW, wallY); ctx.stroke();
+
+            drawProf(p);
+            drawConcentrationProfile(delta);
+
+            if (!showMap) {
+                for (let i = 0; i < dead.length; i++) {
+                    const d = dead[i]; const sx = toSX(d.x);
+                    ctx.beginPath(); ctx.arc(sx, wallY, 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(226,90,74,0.5)'; ctx.fill();
+                }
+                for (let i = 0; i < parts.length; i++) {
+                    const pt = parts[i]; const sx = toSX(pt.x); const sy = toSY(pt.y, delta);
+                    if (sy >= MY && sy <= wallY) {
+                        ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(74,144,226,0.75)'; ctx.fill();
+                    }
+                }
+            }
+
+            // UIテキストをより正確な表現に変更
+            ctx.fillStyle = '#333'; ctx.font = 'bold 13px sans-serif';
+            ctx.fillText('y (対数表示) [壁面 〜 流路中心]', MX - 75, MY - 18);
+            ctx.fillText('壁面 (0.0 mm)', MX - 75, wallY + 18);
+            ctx.fillText('x (流れ方向) →', MX + PW - 120, wallY + 32);
+            for (let i = 0; i <= 5; i++) {
+                const xi = i / 5;
+                ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+                ctx.fillText(xi.toFixed(1), toSX(xi) - 8, wallY + 20);
+            }
+        }
+
+        function updateConcentrationStatistics() {
+            const p = getP();
+            concBins.fill(0);
+
+            const log_ymin_c = Math.log(yMin);
+            const log_ymax_c = Math.log(p.delta);
+
+            for (let i = 0; i < parts.length; i++) {
+                const y = parts[i].y;
+                if (y <= 0) continue;
+                const ly = Math.log(Math.max(y, yMin));
+                const r = Math.max(0, Math.min(1, (ly - log_ymin_c) / (log_ymax_c - log_ymin_c)));
+                const j = Math.min(NY_CONC - 1, Math.floor(r * (NY_CONC - 1)));
+                concBins[j]++;
+            }
+
+            for (let j = 0; j < NY_CONC; j++) {
+                concAvgBins[j] += concBins[j];
+            }
+            concSamples++;
+            if (concSamples < 50) return;
+
+            const log_ymin_b = Math.log(yMin);
+            const log_ymax_b = Math.log(p.delta);
+
+            let bulkNumer = 0, bulkDenom = 0;
+            for (let j = 0; j < NY_CONC; j++) {
+                const ly_b = log_ymin_b + (j / (NY_CONC - 1)) * (log_ymax_b - log_ymin_b);
+                const y_b  = Math.exp(ly_b);
+                const U_j  = Umean(y_b, p);
+                const w    = U_j * y_b;
+                bulkNumer += w * concAvgBins[j];
+                bulkDenom += w;
+            }
+
+            bulkConcValue = bulkDenom > 1e-12 ? bulkNumer / bulkDenom : 1.0;
+            if (bulkConcValue < 1e-12) bulkConcValue = 1e-12;
+
+            let wallSum = 0;
+            for (let j = 0; j < 3; j++) wallSum += concAvgBins[j];
+            const wallConc = wallSum / 3.0;
+            wallConcRatio = wallConc / bulkConcValue;
+
+            const J = totalDead / Math.max(simTime * domLen, 1e-12);
+            const deltaCbulk = bulkConcValue - wallConc;
+
+            if (deltaCbulk > 1e-12) {
+                kmValue = J / deltaCbulk;
+                shValue = kmValue * p.H / p.Dm;
+            }
+
+            deltaC = p.delta;
+            const log_ymin_dc = Math.log(yMin);
+            const log_ymax_dc = Math.log(p.delta);
+            for (let j = 0; j < NY_CONC; j++) {
+                const C = concAvgBins[j] / bulkConcValue;
+                if (C > 0.99) {
+                    const ly_dc = log_ymin_dc + (j / (NY_CONC - 1)) * (log_ymax_dc - log_ymin_dc);
+                    deltaC = Math.exp(ly_dc);
+                    break;
+                }
+            }
+        }
+
+        function updateDisplays() {
+            const p = getP();
+
+            document.getElementById('v-h').textContent = p.H.toFixed(3);
+            document.getElementById('v-q').textContent = p.q.toFixed(3);
+            document.getElementById('v-vw').textContent = p.vw.toFixed(3);
+            document.getElementById('v-dm').textContent = (p.Dm * 1e6).toFixed(0);
+            document.getElementById('v-inf').textContent = p.nInf;
+
+            document.getElementById('s-alive').textContent = parts.length;
+            document.getElementById('s-dead').textContent = totalDead;
+            const r = totalSpawned > 0 ? (totalDead / totalSpawned * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('s-rate').textContent = r;
+            document.getElementById('s-time').textContent = simTime.toFixed(1) + ' s';
+
+            document.getElementById('out-ubulk').textContent = p.Ubulk.toFixed(2);
+            document.getElementById('out-ustar').textContent = p.ustar.toFixed(4);
+            document.getElementById('out-re').textContent = Math.round(p.Re).toLocaleString();
+
+            document.getElementById('out-cw').textContent = wallConcRatio.toFixed(3);
+            document.getElementById('out-km').textContent = kmValue.toExponential(2);
+            document.getElementById('out-sh').textContent = shValue.toFixed(1);
+            document.getElementById('out-dc').textContent = deltaC.toFixed(4);
+
+            const ind = document.getElementById('flow-indicator');
+            if (p.Re < 2300) {
+                ind.textContent = '層流 (Laminar flow)';
+                ind.className = 'flow-status flow-laminar';
+            } else {
+                ind.textContent = '乱流 (Turbulent flow)';
+                ind.className = 'flow-status flow-turbulent';
+            }
+        }
+
+        let fc = 0;
+        function loop() {
+            if (!running) { rafId = null; return; }
+            step(); fc++;
+            if (fc % 3 === 0) spawn(getP().nInf);
+            updateDisplays();
+            redraw();
+            rafId = requestAnimationFrame(loop);
+        }
+
+        document.getElementById('btn-run').addEventListener('click', function () {
+            running = !running; this.textContent = running ? '⏸ 停止' : '▶ 開始';
+            if (running) {
+                this.classList.remove('secondary');
+            } else {
+                this.classList.add('secondary');
+            }
+            if (running && !rafId) rafId = requestAnimationFrame(loop);
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', function () {
+            running = false;
+            const runBtn = document.getElementById('btn-run');
+            runBtn.textContent = '▶ 開始';
+            runBtn.classList.remove('secondary');
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            resetAll();
+        });
+
+        document.getElementById('btn-view').addEventListener('click', function () {
+            showMap = !showMap; this.textContent = showMap ? '粒子表示' : '密度マップ表示';
+            redraw();
+        });
+
+        function bindSlider(id) {
+            const el = document.getElementById(id);
+            el.addEventListener('input', () => {
+                updateDisplays();
+                if (!running) redraw();
+            });
+        }
+        ['sl-h', 'sl-q', 'sl-vw', 'sl-dm', 'sl-inf'].forEach(bindSlider);
+
+        updateDisplays();
+        redraw();
+    </script>
+</body>
+</html>
