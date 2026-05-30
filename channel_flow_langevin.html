@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>DAC内部流動 ランジュバン粒子シミュレーター (完全物理整合版)</title>
+    <title>Langevin Particle Simulator - Channel Flow</title>
     <style>
         :root {
             --color-background-primary: #ffffff;
@@ -56,7 +56,6 @@
             font-weight: bold;
             color: var(--color-text-secondary);
             margin-bottom: 8px;
-            text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
@@ -205,17 +204,17 @@
             <div class="stat-card"><div class="stat-label">回収効率</div><div id="s-rate" class="stat-value">0%</div></div>
             <div class="stat-card"><div class="stat-label">経過時間</div><div id="s-time" class="stat-value">0.0 s</div></div>
             <div class="stat-card">
-                <div class="stat-label">Cw/Cinf (壁面濃度比)</div>
+                <div class="stat-label">Cw/Cbulk (壁面濃度比)</div>
                 <div id="out-cw" class="stat-value accent">1.000</div>
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">km [m/s]</div>
+                <div class="stat-label">km [m/s] (境膜物質移動係数･実効吸収速度)</div>
                 <div id="out-km" class="stat-value accent">0</div>
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">Sh</div>
+                <div class="stat-label">Sh = km･H/D_m (Sherwood number)</div>
                 <div id="out-sh" class="stat-value accent">0</div>
             </div>
 
@@ -223,6 +222,14 @@
                 <div class="stat-label">δc (濃度境界層) [m]</div>
                 <div id="out-dc" class="stat-value accent">0</div>
             </div>
+            <!--<div class="stat-card">
+                <div class="stat-label">dt [ms] (自動設定)</div>
+                <div id="out-dt" class="stat-value">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">subDiv / subCutoff [mm]</div>
+                <div id="out-sub" class="stat-value">—</div>
+            </div>-->
         </div>
 
         <div class="canvas-container">
@@ -239,16 +246,16 @@
 
         <div class="controls-grid">
             <div class="panel">
-                <div class="panel-title">設計入力パラメータ (Inputs)</div>
+                <div class="panel-title">Inputs</div>
                 <div class="control-row">
                     <label for="sl-h">流路の隙間 H [m]</label>
-                    <input id="sl-h" type="range" min="0.001" max="0.1" step="0.001" value="0.01">
-                    <span id="v-h" class="v-val">0.010</span>
+                    <input id="sl-h" type="range" min="0.01" max="0.1" step="0.01" value="0.02">
+                    <span id="v-h" class="v-val">0.02</span>
                 </div>
                 <div class="control-row">
-                    <label for="sl-q">単位奥行流量 q [m²/s]</label>
-                    <input id="sl-q" type="range" min="0.001" max="0.1" step="0.001" value="0.01">
-                    <span id="v-q" class="v-val">0.010</span>
+                    <label for="sl-q">バルク流速 U_bulk [m/s]</label>
+                    <input id="sl-q" type="range" min="0.1" max="10.0" step="0.05" value="1.0">
+                    <span id="v-q" class="v-val">1.0</span>
                 </div>
                 <div class="control-row">
                     <label for="sl-vw">膜の吸収速度 v_w [m/s]</label>
@@ -262,7 +269,7 @@
                 </div>
                 <div class="control-row">
                     <label for="sl-inf">流入数 / フレーム</label>
-                    <input id="sl-inf" type="range" min="15" max="300" step="1" value="50">
+                    <input id="sl-inf" type="range" min="10" max="100" step="5" value="30">
                     <span id="v-inf" class="v-val">50</span>
                 </div>
                 <div class="btn-group">
@@ -273,10 +280,10 @@
             </div>
 
             <div class="panel">
-                <div class="panel-title">自動算出パラメータ (Outputs)</div>
+                <div class="panel-title">Outputs</div>
                 <div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <div class="stat-card">
-                        <div class="stat-label">平均流速 U_bulk [m/s]</div>
+                        <div class="stat-label">単位奥行流量 q [m²/s]</div>
                         <div id="out-ubulk" class="stat-value accent">0.000</div>
                     </div>
                     <div class="stat-card">
@@ -313,8 +320,7 @@
 
         function getP() {
             const H = +document.getElementById('sl-h').value;
-            const q = +document.getElementById('sl-q').value;
-            const Ubulk = q / H;
+            const Ubulk = +document.getElementById('sl-q').value;
             const vw = +document.getElementById('sl-vw').value;
             const Dm = +document.getElementById('sl-dm').value * 1e-6;
             const nInf = +document.getElementById('sl-inf').value;
@@ -330,13 +336,16 @@
             }
             const ustar = Ubulk * Math.sqrt(f / 8.0);
 
-            return { H, q, Ubulk, vw, Dm, nInf, delta, Re, f, ustar };
+            return { H, Ubulk, vw, Dm, nInf, delta, Re, f, ustar };
         }
 
         function Umean(y, p) {
             if (p.Re < 2300) {
-                const y_norm = (p.delta - Math.max(y, 0)) / p.delta;
-                return 1.5 * p.Ubulk * (1.0 - y_norm * y_norm);
+                // y は壁面からの距離。ポアズイユ流: U(y) = 1.5*Ubulk*(1-(1-y/delta)^2)
+                // = 1.5*Ubulk*(2*(y/delta) - (y/delta)^2)
+                const y_norm = Math.max(y, 0) / p.delta;
+                const eta = 1.0 - y_norm;           // 中心からの無次元距離
+                return 1.5 * p.Ubulk * (1.0 - eta * eta);
             } else {
                 const yp = p.ustar * Math.max(y, 1e-12) / nu;
                 let u;
@@ -378,40 +387,109 @@
         const HW = 120, HH = 60;
         let hmap = new Float32Array(HW * HH);
         let showMap = false, running = false, rafId = null;
-        const dt = 0.002;
+
+        // ---- 適応的タイムステップ ----------------------------------------
+        // 制約(1) Langevin安定性: dt < 0.25 * TL_min  (TL_min = 壁面近傍の最小ラグランジアン時間スケール)
+        // 制約(2) 対流ドメイン横断: dt < 0.5 * domLen / Ubulk
+        // 制約(3) サブステップ拡散: dtSub < 0.25 * subCutoff^2 / (2*Dm)
+        // 制約(4) 壁面吸収精度:    dtSub < 2.0 * Dm / vw  (吸収確率の線形域)
+        // subCutoff: 粘性底層外縁(y+=5)の10倍 を基準に delta の10%を上限
+        // subDiv = ceil(dt/dtSub) を [10, 1000] にクランプ
+        function computeDt(p) {
+            const { Ubulk, Dm, vw, ustar, delta, Re } = p;
+
+            const yViscous = Re >= 2300 ? 50.0 * nu / ustar : delta / 50.0;
+            const subCutoff = Math.min(yViscous, 0.10 * delta);
+
+            const TL_min = TL_scale * 10.0 * nu / (ustar * ustar);
+            const dt_TL  = 0.25 * TL_min;
+            const dt_adv = 0.5 * domLen / Math.max(Ubulk, 1e-9);
+            const dt = Math.max(1e-5, Math.min(dt_TL, dt_adv, 0.05));
+
+            const dt_diff = 0.25 * subCutoff * subCutoff / (2.0 * Math.max(Dm, 1e-12));
+            const dt_abs  = vw > 1e-12 ? 2.0 * Dm / vw : dt_diff;
+            const dtSub_target = Math.min(dt_diff, dt_abs, dt_TL);
+
+            const subDiv = Math.max(10, Math.min(1000, Math.ceil(dt / Math.max(dtSub_target, 1e-9))));
+            const dtSub  = dt / subDiv;
+
+            return { dt, subDiv, dtSub, subCutoff };
+        }
 
         function resetAll() {
             parts = []; dead = []; totalDead = 0; totalSpawned = 0; simTime = 0;
             concBins.fill(0); concAvgBins.fill(0); concSamples = 0;
             wallConcRatio = 1.0; bulkConcValue = 1.0; kmValue = 0.0; shValue = 0.0; deltaC = 0.0;
             hmap = new Float32Array(HW * HH);
+            spawnCDF = null; spawnCDF_key = '';
             updateDisplays(); redraw();
+        }
+
+        // 流入断面 (x=0) の流量フラックス U(y) に正確に比例した粒子生成。
+        // 対数空間で離散化した累積分布関数 (CDF) を事前構築し、
+        // 一様乱数の逆関数で y をサンプリングする。
+        // これにより壁面近傍の対数ビンにも正しい粒子密度が確保される。
+        const N_CDF = 2000;  // CDF の離散点数（細かいほど壁面近傍が正確）
+        let spawnCDF = null; // { ys, cdf } キャッシュ
+        let spawnCDF_key = '';
+
+        function buildSpawnCDF(p) {
+            const key = `${p.Re.toFixed(0)}_${p.Ubulk.toFixed(6)}_${p.ustar.toFixed(8)}_${p.delta.toFixed(6)}`;
+            if (spawnCDF && spawnCDF_key === key) return spawnCDF;
+
+            // 対数空間で N_CDF 点を配置
+            const log_ymin = Math.log(yMin);
+            const log_ymax = Math.log(p.delta);
+            const ys  = new Float64Array(N_CDF);
+            const pdf = new Float64Array(N_CDF);
+            for (let i = 0; i < N_CDF; i++) {
+                const t = (i + 0.5) / N_CDF;
+                ys[i] = Math.exp(log_ymin + t * (log_ymax - log_ymin));
+                // U(y) * dy/d(log y) = U(y) * y  が対数空間での重み
+                pdf[i] = Math.max(Umean(ys[i], p), 0) * ys[i];
+            }
+
+            // 累積 → 正規化
+            const cdf = new Float64Array(N_CDF);
+            cdf[0] = pdf[0];
+            for (let i = 1; i < N_CDF; i++) cdf[i] = cdf[i - 1] + pdf[i];
+            const total = cdf[N_CDF - 1];
+            for (let i = 0; i < N_CDF; i++) cdf[i] /= total;
+
+            spawnCDF = { ys, cdf };
+            spawnCDF_key = key;
+            return spawnCDF;
+        }
+
+        function sampleY(cdf_obj) {
+            const { ys, cdf } = cdf_obj;
+            const u = Math.random();
+            // 二分探索
+            let lo = 0, hi = N_CDF - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (cdf[mid] < u) lo = mid + 1; else hi = mid;
+            }
+            // 区間内で線形補間
+            if (lo === 0) return ys[0];
+            const t = (u - cdf[lo - 1]) / Math.max(cdf[lo] - cdf[lo - 1], 1e-15);
+            return ys[lo - 1] + t * (ys[lo] - ys[lo - 1]);
         }
 
         function spawn(n) {
             const p = getP();
-            const yMax = p.delta;
-            const maxU = Umean(yMax, p);
+            const cdf_obj = buildSpawnCDF(p);
 
-            let spawned = 0;
-            let attempts = 0;
-            const maxAttempts = n * 500;
-
-            while (spawned < n && attempts < maxAttempts) {
-                attempts++;
-                const y = yMin + (yMax - yMin) * Math.random();
+            for (let i = 0; i < n; i++) {
+                const y = sampleY(cdf_obj);
                 const uLocal = Umean(y, p);
-
-                if (Math.random() < uLocal / maxU) {
-                    if (p.Re < 2300) {
-                        parts.push({ x: 0, y: y, vx: uLocal, vy: 0 });
-                    } else {
-                        const sig = getSigmaV(y, p.ustar, p.delta);
-                        parts.push({ x: 0, y: y, vx: uLocal + randn() * sig * 2.0, vy: randn() * sig });
-                    }
-                    spawned++;
-                    totalSpawned++;
+                if (p.Re < 2300) {
+                    parts.push({ x: 0, y, vx: uLocal, vy: 0 });
+                } else {
+                    const sig = getSigmaV(y, p.ustar, p.delta);
+                    parts.push({ x: 0, y, vx: uLocal + randn() * sig * 2.0, vy: randn() * sig });
                 }
+                totalSpawned++;
             }
         }
 
@@ -420,9 +498,7 @@
             const { ustar, delta, Dm, vw, Re } = p;
             const keep = [];
 
-            const subCutoff = 0.002;
-            const subDiv = 100;
-            const dtSub = dt / subDiv;
+            const { dt, subDiv, dtSub, subCutoff } = computeDt(p);
             const sdtSub = Math.sqrt(dtSub);
             const sdtMain = Math.sqrt(dt);
             const dy_diff = 1e-6;
@@ -457,6 +533,23 @@
 
                         pt.x += pt.vx * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
                         pt.y += pt.vy * dt + Math.sqrt(2 * Dm) * randn() * sdtMain;
+                    }
+                    // メインステップでも壁面通過を判定する
+                    if (pt.y <= 0) {
+                        const penetration = Math.max(-pt.y, 1e-12);
+                        const P_absorb = 1.0 - Math.exp(-vw * penetration / Dm);
+                        if (Math.random() < P_absorb) {
+                            dead.push({ x: Math.max(0, Math.min(pt.x, domLen)) });
+                            totalDead++;
+                            const hx = Math.floor(Math.max(0, Math.min(pt.x, domLen)) / domLen * (HW - 1));
+                            for (let hy = 0; hy < Math.floor(HH * 0.15); hy++) {
+                                hmap[hy * HW + hx] += 0.3 * (1 - hy / (HH * 0.15));
+                            }
+                            isDead = true;
+                        } else {
+                            pt.y = -pt.y;
+                            pt.vy = Math.abs(pt.vy);
+                        }
                     }
                 }
                 else {
@@ -630,9 +723,9 @@
             ctx.strokeStyle = '#c8a030'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
             ctx.beginPath(); ctx.moveTo(MX, centerGy); ctx.lineTo(MX + PW, centerGy); ctx.stroke();
             ctx.setLineDash([]);
-            ctx.fillStyle = '#c8a030'; ctx.font = 'bold 12px sans-serif';
-            const centerMm = (delta * 1000).toFixed(2);
-            ctx.fillText(`流路中心 (${centerMm} mm)`, MX + PW + 6, centerGy + 4);
+            ctx.fillStyle = '#c8a030'; ctx.font = '10px sans-serif';
+            const centerMm = (delta * 1000).toFixed(0);
+            ctx.fillText(`${centerMm} mm`, MX + PW + 6, centerGy + 4);
 
             if (showMap) {
                 let mx = 0;
@@ -675,9 +768,9 @@
             }
 
             ctx.fillStyle = '#1d1d1f'; ctx.font = 'bold 13px sans-serif';
-            ctx.fillText('y (壁面からの距離 : 対数スケール)', MX - 75, MY - 18);
+            ctx.fillText('y (log scale)', MX - 75, MY - 18);
             ctx.fillText('吸着壁面 (0.0 mm)', MX - 75, wallY + 18);
-            ctx.fillText('x (流れ方向) →', MX + PW - 120, wallY + 32);
+            ctx.fillText('x', MX + PW - 120, wallY + 32);
             for (let i = 0; i <= 5; i++) {
                 const xi = i / 5;
                 ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
@@ -736,35 +829,60 @@
             bulkConcValue = bulkDenom > 1e-12 ? bulkNumer / bulkDenom : 1.0;
             if (bulkConcValue < 1e-12) bulkConcValue = 1e-12;
 
-            // 壁面濃度の厳密な体積平均（最初の3つの対数ビン）
-            let wallN = 0, wallDy = 0;
-            for (let j = 0; j < 3; j++) {
-                const y_bot = (j === 0) ? 0 : Math.exp(log_ymin_c + j * dly);
-                const y_top = Math.exp(log_ymin_c + (j + 1) * dly);
-                const dy = y_top - y_bot;
-                wallN += C_array[j] * dy;
-                wallDy += dy;
+            // 壁面濃度: 最壁面側ビン（j=0）のみを使い、
+            // その上端 y_top を代表高さとして線形外挿で y=0 の値を推定する。
+            // 3ビン平均より壁面実態に近い。
+            {
+                const y_top0 = Math.exp(log_ymin_c + dly);       // j=0 の上端
+                const y_top1 = Math.exp(log_ymin_c + 2 * dly);   // j=1 の上端
+                const C0 = C_array[0];
+                const C1 = C_array[1];
+                // 対数格子上での線形外挿 (log y 軸で外挿)
+                const slope = (C1 - C0) / (Math.log(y_top1) - Math.log(y_top0));
+                const wallConc = Math.max(0, C0 + slope * (Math.log(yMin) - Math.log(y_top0)));
+                wallConcRatio = wallConc / bulkConcValue;
+
+                // ---- km の計算 ----
+                // フラックス J [個/(s·m)] = totalDead / (simTime * domLen)
+                // ΔC として x 方向の減衰を考慮したログ平均を使う。
+                // 入口 C_in ≈ Cbulk（吸収前）、出口 C_out = Cbulk（現在の流路平均）
+                // を仮定し、対数平均 ΔC_lm を用いる。
+                // ただし吸収が弱い場合は単純差分に収束する。
+                const J = totalDead / Math.max(simTime * domLen, 1e-12);
+
+                // 入口バルク濃度の推定: 現在の Cbulk と totalDead/totalSpawned から逆算
+                // C_in = C_bulk / (1 - eta)  where eta = 回収効率
+                const eta = totalSpawned > 0
+                    ? Math.min(totalDead / totalSpawned, 0.9999)
+                    : 0;
+                const C_in  = eta > 1e-6 ? bulkConcValue / (1.0 - eta) : bulkConcValue;
+                const C_out = bulkConcValue;
+
+                // 対数平均駆動力 ΔC_lm = (ΔC_in - ΔC_out) / ln(ΔC_in / ΔC_out)
+                const dCin  = Math.max(C_in  - wallConc, 1e-15);
+                const dCout = Math.max(C_out - wallConc, 1e-15);
+                let deltaCbulk;
+                if (Math.abs(dCin - dCout) < 1e-10 * dCin) {
+                    deltaCbulk = dCin; // ほぼ等しい場合は単純差分
+                } else {
+                    deltaCbulk = (dCin - dCout) / Math.log(dCin / dCout);
+                }
+
+                if (deltaCbulk > 1e-12) {
+                    kmValue = J / deltaCbulk;
+                    shValue = kmValue * p.H / p.Dm;
+                } else {
+                    kmValue = 0;
+                    shValue = 0;
+                }
             }
-            const wallConc = wallDy > 0 ? wallN / wallDy : 0;
-            wallConcRatio = wallConc / bulkConcValue;
 
-            // 【完全修正】時間平均フラックスと次元が揃った絶対濃度による物質移動係数の算出
-            const J = totalDead / Math.max(simTime * domLen, 1e-12);
-            const deltaCbulk = bulkConcValue - wallConc;
-
-            if (deltaCbulk > 1e-12) {
-                kmValue = J / deltaCbulk;
-                shValue = kmValue * p.H / p.Dm;
-            } else {
-                kmValue = 0;
-                shValue = 0;
-            }
-
+            // 濃度境界層厚さ: 中心側から壁面方向へ走査し、C/Cbulk が 0.99 を下回る位置
             deltaC = p.delta;
-            for (let j = 0; j < NY_CONC; j++) {
+            for (let j = NY_CONC - 1; j >= 0; j--) {
                 const C = C_array[j] / bulkConcValue;
-                if (C > 0.99) {
-                    deltaC = Math.exp(log_ymin_c + j * dly);
+                if (C < 0.99) {
+                    deltaC = Math.exp(log_ymin_c + (j + 1) * dly);
                     break;
                 }
             }
@@ -774,8 +892,8 @@
             const p = getP();
 
             document.getElementById('sl-h').value = p.H;
-            document.getElementById('v-h').textContent = p.H.toFixed(3);
-            document.getElementById('v-q').textContent = p.q.toFixed(3);
+            document.getElementById('v-h').textContent = p.H.toFixed(2);
+            document.getElementById('v-q').textContent = p.Ubulk.toFixed(1);
             document.getElementById('v-vw').textContent = p.vw.toFixed(3);
             document.getElementById('v-dm').textContent = (p.Dm * 1e6).toFixed(0);
             document.getElementById('v-inf').textContent = p.nInf;
@@ -786,7 +904,7 @@
             document.getElementById('s-rate').textContent = r;
             document.getElementById('s-time').textContent = simTime.toFixed(1) + ' s';
 
-            document.getElementById('out-ubulk').textContent = p.Ubulk.toFixed(2);
+            document.getElementById('out-ubulk').textContent = (p.Ubulk * p.H).toExponential(3);
             document.getElementById('out-ustar').textContent = p.ustar.toFixed(4);
             document.getElementById('out-re').textContent = Math.round(p.Re).toLocaleString();
 
@@ -794,6 +912,11 @@
             document.getElementById('out-km').textContent = kmValue.toExponential(2);
             document.getElementById('out-sh').textContent = shValue.toFixed(1);
             document.getElementById('out-dc').textContent = deltaC.toFixed(4);
+
+            //const ts = computeDt(p);
+            //document.getElementById('out-dt').textContent  = (ts.dt * 1000).toFixed(2);
+            //document.getElementById('out-sub').textContent =
+            //    ts.subDiv + ' / ' + (ts.subCutoff * 1000).toFixed(2) + ' mm';
 
             const ind = document.getElementById('flow-indicator');
             if (p.Re < 2300) {
